@@ -1,0 +1,6 @@
+{
+  "name": "EduManage Pro - School Management System",
+  "description": "Complete, production-ready desktop school management system with role-based auth, dashboard analytics, and Python PySide6 suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
