@@ -18,6 +18,17 @@ import {
   FeeStructureInfo,
   StudentFeeInvoice,
   FeePaymentRecord,
+  AccountCategoryInfo,
+  AccountTransactionRecord,
+  FinancialSummary,
+  ExamTermInfo,
+  GradingScaleInfo,
+  ExamScheduleInfo,
+  StudentMarkRecord,
+  ExamResultSummaryInfo,
+  PeriodSlotInfo,
+  TimetableEntryInfo,
+  TimetableConflict,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -40,6 +51,15 @@ const STORAGE_KEYS = {
   FEE_STRUCTURES: 'edumanage_fee_structures',
   STUDENT_FEES: 'edumanage_student_fees',
   FEE_PAYMENTS: 'edumanage_fee_payments',
+  ACCOUNT_CATEGORIES: 'edumanage_account_categories',
+  ACCOUNT_TRANSACTIONS: 'edumanage_account_transactions',
+  EXAM_TERMS: 'edumanage_exam_terms',
+  GRADING_SCALES: 'edumanage_grading_scales',
+  EXAM_SCHEDULES: 'edumanage_exam_schedules',
+  STUDENT_MARKS: 'edumanage_student_marks',
+  EXAM_RESULT_SUMMARIES: 'edumanage_exam_result_summaries',
+  TIMETABLE_PERIODS: 'edumanage_timetable_periods',
+  TIMETABLE_ENTRIES: 'edumanage_timetable_entries',
 };
 
 const DEFAULT_SCHOOL_SETTINGS: SchoolSetting = {
@@ -1976,6 +1996,699 @@ export const StorageService = {
       totalInvoices: invoices.length,
     };
   },
+
+  // ==========================================
+  // PHASE 7: ACCOUNTING & EXPENSE MANAGEMENT
+  // ==========================================
+
+  getAccountCategories(type?: 'Income' | 'Expense'): AccountCategoryInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNT_CATEGORIES);
+    let cats: AccountCategoryInfo[];
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.ACCOUNT_CATEGORIES, JSON.stringify(DEFAULT_ACCOUNT_CATEGORIES));
+      cats = DEFAULT_ACCOUNT_CATEGORIES;
+    } else {
+      cats = JSON.parse(raw);
+    }
+    if (type) {
+      return cats.filter((c) => c.type === type && c.isActive);
+    }
+    return cats.filter((c) => c.isActive);
+  },
+
+  saveAccountCategories(cats: AccountCategoryInfo[]): void {
+    localStorage.setItem(STORAGE_KEYS.ACCOUNT_CATEGORIES, JSON.stringify(cats));
+  },
+
+  addAccountCategory(cat: Omit<AccountCategoryInfo, 'id'>): AccountCategoryInfo {
+    const list = this.getAccountCategories();
+    const newCat: AccountCategoryInfo = {
+      ...cat,
+      id: list.length > 0 ? Math.max(...list.map((c) => c.id)) + 1 : 1,
+    };
+    const updated = [...list, newCat];
+    this.saveAccountCategories(updated);
+    this.addActivityLog({
+      username: 'admin',
+      action: 'ACCOUNT_CATEGORY_CREATED',
+      module: 'ACCOUNTING',
+      description: `Created account category: ${newCat.name} (${newCat.type}) [${newCat.code}]`,
+      severity: 'INFO',
+    });
+    return newCat;
+  },
+
+  getAccountTransactions(): AccountTransactionRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNT_TRANSACTIONS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.ACCOUNT_TRANSACTIONS, JSON.stringify(DEFAULT_ACCOUNT_TRANSACTIONS));
+      return DEFAULT_ACCOUNT_TRANSACTIONS;
+    }
+    return JSON.parse(raw);
+  },
+
+  saveAccountTransactions(txs: AccountTransactionRecord[]): void {
+    localStorage.setItem(STORAGE_KEYS.ACCOUNT_TRANSACTIONS, JSON.stringify(txs));
+  },
+
+  generateVoucherNumber(type: 'Income' | 'Expense'): string {
+    const txs = this.getAccountTransactions();
+    const year = new Date().getFullYear();
+    const prefix = type === 'Income' ? 'INC' : 'EXP';
+    const count = txs.filter((t) => t.type === type).length + 10;
+    return `VCH-${year}-${prefix}-${count.toString().padStart(5, '0')}`;
+  },
+
+  recordAccountTransaction(txData: {
+    type: 'Income' | 'Expense';
+    categoryId: number;
+    amount: number;
+    transactionDate?: string;
+    paymentMethod: AccountTransactionRecord['paymentMethod'];
+    referenceNo?: string;
+    paidToReceivedFrom: string;
+    description?: string;
+    recordedBy?: string;
+  }): AccountTransactionRecord {
+    const cats = this.getAccountCategories();
+    const cat = cats.find((c) => c.id === txData.categoryId);
+    if (!cat) throw new Error('Selected account category does not exist');
+    if (txData.amount <= 0) throw new Error('Transaction amount must be greater than zero');
+
+    const txs = this.getAccountTransactions();
+    const vchNo = this.generateVoucherNumber(txData.type);
+    const newTx: AccountTransactionRecord = {
+      id: Date.now(),
+      voucherNo: vchNo,
+      transactionDate: txData.transactionDate || new Date().toISOString().split('T')[0],
+      type: txData.type,
+      categoryId: cat.id,
+      categoryName: cat.name,
+      categoryCode: cat.code,
+      amount: txData.amount,
+      paymentMethod: txData.paymentMethod,
+      referenceNo: txData.referenceNo,
+      paidToReceivedFrom: txData.paidToReceivedFrom.trim(),
+      description: txData.description?.trim(),
+      recordedBy: txData.recordedBy || 'Chief Accountant',
+      status: 'Approved',
+    };
+
+    const updated = [newTx, ...txs];
+    this.saveAccountTransactions(updated);
+
+    this.addActivityLog({
+      username: 'admin',
+      action: 'VOUCHER_RECORDED',
+      module: 'ACCOUNTING',
+      description: `Posted ${newTx.type} voucher ${vchNo}: ৳${newTx.amount.toLocaleString()} for ${newTx.paidToReceivedFrom} (${cat.name})`,
+      severity: 'INFO',
+    });
+
+    return newTx;
+  },
+
+  getFinancialSummary(): FinancialSummary {
+    const txs = this.getAccountTransactions().filter((t) => t.status === 'Approved');
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let cashIn = 0;
+    let cashOut = 0;
+
+    txs.forEach((t) => {
+      if (t.type === 'Income') {
+        totalIncome += t.amount;
+        if (t.paymentMethod === 'Cash') cashIn += t.amount;
+      } else {
+        totalExpense += t.amount;
+        if (t.paymentMethod === 'Cash') cashOut += t.amount;
+      }
+    });
+
+    const netSurplus = totalIncome - totalExpense;
+    return {
+      totalIncome,
+      totalExpense,
+      netSurplus,
+      cashInHand: cashIn - cashOut,
+      isProfit: netSurplus >= 0,
+    };
+  },
+
+  getAccountingCategoryBreakdown(type: 'Income' | 'Expense') {
+    const txs = this.getAccountTransactions().filter((t) => t.type === type && t.status === 'Approved');
+    const map = new Map<number, { category: string; code: string; amount: number; count: number }>();
+
+    txs.forEach((t) => {
+      const existing = map.get(t.categoryId) || {
+        category: t.categoryName,
+        code: t.categoryCode,
+        amount: 0,
+        count: 0,
+      };
+      existing.amount += t.amount;
+      existing.count += 1;
+      map.set(t.categoryId, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  },
+
+  // --- Phase 8: Exam Management, Grading & Results ---
+  getExamTerms(): ExamTermInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.EXAM_TERMS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.EXAM_TERMS, JSON.stringify(DEFAULT_EXAM_TERMS));
+      return DEFAULT_EXAM_TERMS;
+    }
+    return JSON.parse(raw);
+  },
+
+  createExamTerm(data: Omit<ExamTermInfo, 'id'>): ExamTermInfo {
+    const terms = this.getExamTerms();
+    const newTerm: ExamTermInfo = {
+      ...data,
+      id: terms.length > 0 ? Math.max(...terms.map((t) => t.id)) + 1 : 1,
+    };
+    terms.push(newTerm);
+    localStorage.setItem(STORAGE_KEYS.EXAM_TERMS, JSON.stringify(terms));
+    return newTerm;
+  },
+
+  updateExamTerm(id: number, data: Partial<ExamTermInfo>): ExamTermInfo | null {
+    const terms = this.getExamTerms();
+    const idx = terms.findIndex((t) => t.id === id);
+    if (idx === -1) return null;
+    terms[idx] = { ...terms[idx], ...data };
+    localStorage.setItem(STORAGE_KEYS.EXAM_TERMS, JSON.stringify(terms));
+    return terms[idx];
+  },
+
+  deleteExamTerm(id: number): boolean {
+    const terms = this.getExamTerms();
+    const filtered = terms.filter((t) => t.id !== id);
+    if (filtered.length === terms.length) return false;
+    localStorage.setItem(STORAGE_KEYS.EXAM_TERMS, JSON.stringify(filtered));
+    return true;
+  },
+
+  getGradingScales(): GradingScaleInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.GRADING_SCALES);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.GRADING_SCALES, JSON.stringify(DEFAULT_GRADING_SCALES));
+      return DEFAULT_GRADING_SCALES;
+    }
+    return JSON.parse(raw);
+  },
+
+  getGradeForScore(score: number): { gradeName: string; gradePoint: number; remarks: string; isPassed: boolean } {
+    const scales = this.getGradingScales();
+    for (const scale of scales) {
+      if (score >= scale.markFrom && score <= scale.markTo) {
+        return {
+          gradeName: scale.gradeName,
+          gradePoint: scale.gradePoint,
+          remarks: scale.remarks,
+          isPassed: scale.gradePoint > 0,
+        };
+      }
+    }
+    if (score >= 80) return { gradeName: 'A+', gradePoint: 5.0, remarks: 'Outstanding', isPassed: true };
+    return { gradeName: 'F', gradePoint: 0.0, remarks: 'Fail', isPassed: false };
+  },
+
+  getExamSchedules(termId?: number, classId?: number): ExamScheduleInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.EXAM_SCHEDULES);
+    let schedules: ExamScheduleInfo[] = raw ? JSON.parse(raw) : DEFAULT_EXAM_SCHEDULES;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.EXAM_SCHEDULES, JSON.stringify(DEFAULT_EXAM_SCHEDULES));
+    }
+    if (termId) schedules = schedules.filter((s) => s.examTermId === termId);
+    if (classId) schedules = schedules.filter((s) => s.classId === classId);
+    return schedules;
+  },
+
+  createExamSchedule(data: Omit<ExamScheduleInfo, 'id'>): ExamScheduleInfo {
+    const schedules = this.getExamSchedules();
+    const newSchedule: ExamScheduleInfo = {
+      ...data,
+      id: schedules.length > 0 ? Math.max(...schedules.map((s) => s.id)) + 1 : 1,
+    };
+    schedules.push(newSchedule);
+    localStorage.setItem(STORAGE_KEYS.EXAM_SCHEDULES, JSON.stringify(schedules));
+    return newSchedule;
+  },
+
+  updateExamSchedule(id: number, data: Partial<ExamScheduleInfo>): ExamScheduleInfo | null {
+    const schedules = this.getExamSchedules();
+    const idx = schedules.findIndex((s) => s.id === id);
+    if (idx === -1) return null;
+    schedules[idx] = { ...schedules[idx], ...data };
+    localStorage.setItem(STORAGE_KEYS.EXAM_SCHEDULES, JSON.stringify(schedules));
+    return schedules[idx];
+  },
+
+  deleteExamSchedule(id: number): boolean {
+    const schedules = this.getExamSchedules();
+    const filtered = schedules.filter((s) => s.id !== id);
+    if (filtered.length === schedules.length) return false;
+    localStorage.setItem(STORAGE_KEYS.EXAM_SCHEDULES, JSON.stringify(filtered));
+    return true;
+  },
+
+  getStudentMarks(termId?: number, classId?: number, subjectId?: number): StudentMarkRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.STUDENT_MARKS);
+    let marks: StudentMarkRecord[] = raw ? JSON.parse(raw) : DEFAULT_STUDENT_MARKS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.STUDENT_MARKS, JSON.stringify(DEFAULT_STUDENT_MARKS));
+    }
+    if (termId) marks = marks.filter((m) => m.examTermId === termId);
+    if (classId) marks = marks.filter((m) => m.classId === classId);
+    if (subjectId) marks = marks.filter((m) => m.subjectId === subjectId);
+    return marks;
+  },
+
+  upsertStudentMarks(
+    termId: number,
+    classId: number,
+    subjectId: number,
+    marksList: Array<{
+      studentId: number;
+      theoryMarks: number;
+      mcqMarks: number;
+      practicalMarks: number;
+      caMarks: number;
+      isAbsent: boolean;
+      remarks?: string;
+    }>
+  ): StudentMarkRecord[] {
+    const allMarks = this.getStudentMarks();
+    const students = this.getStudents();
+    const classes = this.getDetailedClasses();
+    const subjects = this.getSubjects();
+
+    const targetClass = classes.find((c) => c.id === classId);
+    const targetSubject = subjects.find((s) => s.id === subjectId);
+    const className = targetClass ? targetClass.name : 'Unknown Class';
+    const subjectName = targetSubject ? targetSubject.name : 'Unknown Subject';
+    const subjectCode = targetSubject ? targetSubject.code : 'SUB';
+
+    const updated: StudentMarkRecord[] = [];
+
+    for (const item of marksList) {
+      const student = students.find((s) => s.id === item.studentId);
+      const studentName = student ? `${student.firstName} ${student.lastName}` : 'Unknown Student';
+      const studentCode = student ? student.studentId : `STD-${item.studentId}`;
+      const rollNumber = student ? student.rollNumber : 0;
+
+      const total = item.isAbsent ? 0 : Number(item.theoryMarks || 0) + Number(item.mcqMarks || 0) + Number(item.practicalMarks || 0) + Number(item.caMarks || 0);
+      const grade = item.isAbsent ? { gradeName: 'F', gradePoint: 0.0, isPassed: false } : this.getGradeForScore(total);
+
+      const existingIdx = allMarks.findIndex(
+        (m) => m.examTermId === termId && m.classId === classId && m.subjectId === subjectId && m.studentId === item.studentId
+      );
+
+      const markRecord: StudentMarkRecord = {
+        id: existingIdx >= 0 ? allMarks[existingIdx].id : allMarks.length > 0 ? Math.max(...allMarks.map((m) => m.id)) + 1 : 1,
+        examTermId: termId,
+        classId,
+        className,
+        subjectId,
+        subjectName,
+        subjectCode,
+        studentId: item.studentId,
+        studentCode,
+        studentName,
+        rollNumber,
+        theoryMarks: item.isAbsent ? 0 : Number(item.theoryMarks || 0),
+        mcqMarks: item.isAbsent ? 0 : Number(item.mcqMarks || 0),
+        practicalMarks: item.isAbsent ? 0 : Number(item.practicalMarks || 0),
+        caMarks: item.isAbsent ? 0 : Number(item.caMarks || 0),
+        totalMarks: total,
+        isAbsent: item.isAbsent,
+        gradeName: grade.gradeName,
+        gradePoint: grade.gradePoint,
+        isPassed: !item.isAbsent && grade.isPassed,
+        remarks: item.remarks || '',
+      };
+
+      if (existingIdx >= 0) {
+        allMarks[existingIdx] = markRecord;
+      } else {
+        allMarks.push(markRecord);
+      }
+      updated.push(markRecord);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.STUDENT_MARKS, JSON.stringify(allMarks));
+    // Auto compile results for the class & term
+    this.compileClassResults(termId, classId);
+    return updated;
+  },
+
+  compileClassResults(termId: number, classId: number): ExamResultSummaryInfo[] {
+    const terms = this.getExamTerms();
+    const currentTerm = terms.find((t) => t.id === termId);
+    const termName = currentTerm ? currentTerm.name : 'Terminal Exam';
+
+    const classes = this.getDetailedClasses();
+    const targetClass = classes.find((c) => c.id === classId);
+    const className = targetClass ? targetClass.name : 'Unknown Class';
+
+    const students = this.getStudents().filter(
+      (s) =>
+        (s.className === className ||
+          s.className.toLowerCase().includes((targetClass?.name || '').toLowerCase())) &&
+        s.status === 'active'
+    );
+
+    const allMarks = this.getStudentMarks(termId, classId);
+    const summaries: ExamResultSummaryInfo[] = [];
+
+    students.forEach((student) => {
+      const studentMarks = allMarks.filter((m) => m.studentId === student.id);
+      if (studentMarks.length === 0) return;
+
+      let totalObtained = 0;
+      let totalFull = studentMarks.length * 100;
+      let totalPoints = 0;
+      let failedCount = 0;
+
+      studentMarks.forEach((m) => {
+        totalObtained += m.totalMarks;
+        totalPoints += m.gradePoint;
+        if (!m.isPassed || m.isAbsent) {
+          failedCount += 1;
+        }
+      });
+
+      const passedAll = failedCount === 0;
+      const calculatedGpa = studentMarks.length > 0 ? Number((totalPoints / studentMarks.length).toFixed(2)) : 0;
+      // Fail-lock rule: if failed in any subject, GPA is 0.00 and overall grade is F
+      const gpa = passedAll ? Math.min(5.0, calculatedGpa) : 0.0;
+      let overallGrade = 'F';
+      if (passedAll) {
+        if (gpa >= 5.0) overallGrade = 'A+';
+        else if (gpa >= 4.0) overallGrade = 'A';
+        else if (gpa >= 3.5) overallGrade = 'A-';
+        else if (gpa >= 3.0) overallGrade = 'B';
+        else if (gpa >= 2.0) overallGrade = 'C';
+        else if (gpa >= 1.0) overallGrade = 'D';
+      }
+
+      const percentage = totalFull > 0 ? Number(((totalObtained / totalFull) * 100).toFixed(2)) : 0;
+
+      summaries.push({
+        id: summaries.length + 1,
+        examTermId: termId,
+        examTermName: termName,
+        studentId: student.id,
+        studentCode: student.studentId,
+        studentName: `${student.firstName} ${student.lastName}`,
+        rollNumber: student.rollNumber,
+        classId,
+        className,
+        sectionName: student.sectionName,
+        totalObtained,
+        totalFullMarks: totalFull,
+        percentage,
+        gpa,
+        overallGrade,
+        classRank: null,
+        passedAll,
+        failedSubjectCount: failedCount,
+        remarks: passedAll ? (gpa === 5.0 ? 'Golden A+ (Outstanding)' : 'Passed Successfully') : `Failed in ${failedCount} Subject(s)`,
+      });
+    });
+
+    // Merit Ranking: Passed students first, sorted by GPA desc, then totalObtained desc
+    summaries.sort((a, b) => {
+      if (a.passedAll !== b.passedAll) return a.passedAll ? -1 : 1;
+      if (b.gpa !== a.gpa) return b.gpa - a.gpa;
+      return b.totalObtained - a.totalObtained;
+    });
+
+    summaries.forEach((s, idx) => {
+      s.classRank = idx + 1;
+      s.id = idx + 1;
+    });
+
+    const allSummaries = this.getExamResultSummaries();
+    const otherSummaries = allSummaries.filter((s) => !(s.examTermId === termId && s.classId === classId));
+    const merged = [...otherSummaries, ...summaries];
+    localStorage.setItem(STORAGE_KEYS.EXAM_RESULT_SUMMARIES, JSON.stringify(merged));
+    return summaries;
+  },
+
+  getExamResultSummaries(termId?: number, classId?: number): ExamResultSummaryInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.EXAM_RESULT_SUMMARIES);
+    let list: ExamResultSummaryInfo[] = raw ? JSON.parse(raw) : DEFAULT_EXAM_RESULT_SUMMARIES;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.EXAM_RESULT_SUMMARIES, JSON.stringify(DEFAULT_EXAM_RESULT_SUMMARIES));
+    }
+    if (termId) list = list.filter((s) => s.examTermId === termId);
+    if (classId) list = list.filter((s) => s.classId === classId);
+    return list;
+  },
+
+  getExamStats() {
+    const terms = this.getExamTerms();
+    const summaries = this.getExamResultSummaries();
+    const schedules = this.getExamSchedules();
+    const totalExaminees = summaries.length;
+    const passedExaminees = summaries.filter((s) => s.passedAll).length;
+    const passRate = totalExaminees > 0 ? Number(((passedExaminees / totalExaminees) * 100).toFixed(1)) : 0;
+    const gpa5Count = summaries.filter((s) => s.gpa === 5.0).length;
+
+    return {
+      totalTerms: terms.length,
+      upcomingRoutines: schedules.length,
+      totalExaminees,
+      passRate,
+      gpa5Count,
+    };
+  },
+
+  // --- Phase 9: Class Timetable & Teacher Routine Management ---
+  getPeriodSlots(): PeriodSlotInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.TIMETABLE_PERIODS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.TIMETABLE_PERIODS, JSON.stringify(DEFAULT_PERIOD_SLOTS));
+      return DEFAULT_PERIOD_SLOTS;
+    }
+    return JSON.parse(raw);
+  },
+
+  createPeriodSlot(data: Omit<PeriodSlotInfo, 'id'>): PeriodSlotInfo {
+    const slots = this.getPeriodSlots();
+    const newSlot: PeriodSlotInfo = {
+      ...data,
+      id: slots.length > 0 ? Math.max(...slots.map((s) => s.id)) + 1 : 1,
+    };
+    slots.push(newSlot);
+    localStorage.setItem(STORAGE_KEYS.TIMETABLE_PERIODS, JSON.stringify(slots));
+    return newSlot;
+  },
+
+  updatePeriodSlot(id: number, data: Partial<PeriodSlotInfo>): PeriodSlotInfo | null {
+    const slots = this.getPeriodSlots();
+    const idx = slots.findIndex((s) => s.id === id);
+    if (idx === -1) return null;
+    slots[idx] = { ...slots[idx], ...data };
+    localStorage.setItem(STORAGE_KEYS.TIMETABLE_PERIODS, JSON.stringify(slots));
+    return slots[idx];
+  },
+
+  deletePeriodSlot(id: number): boolean {
+    const slots = this.getPeriodSlots();
+    const filtered = slots.filter((s) => s.id !== id);
+    if (filtered.length === slots.length) return false;
+    localStorage.setItem(STORAGE_KEYS.TIMETABLE_PERIODS, JSON.stringify(filtered));
+    return true;
+  },
+
+  getTimetableEntries(classId?: number, sectionId?: number, teacherId?: number, dayOfWeek?: string): TimetableEntryInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.TIMETABLE_ENTRIES);
+    let entries: TimetableEntryInfo[] = raw ? JSON.parse(raw) : DEFAULT_TIMETABLE_ENTRIES;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.TIMETABLE_ENTRIES, JSON.stringify(DEFAULT_TIMETABLE_ENTRIES));
+    }
+    if (classId) entries = entries.filter((e) => e.classId === classId);
+    if (sectionId) entries = entries.filter((e) => e.sectionId === sectionId);
+    if (teacherId) entries = entries.filter((e) => e.teacherId === teacherId);
+    if (dayOfWeek) entries = entries.filter((e) => e.dayOfWeek === dayOfWeek);
+    return entries;
+  },
+
+  checkTimetableConflict(
+    dayOfWeek: string,
+    periodSlotId: number,
+    teacherId: number,
+    roomNumber: string,
+    excludeEntryId?: number
+  ): TimetableConflict[] {
+    const allEntries = this.getTimetableEntries();
+    const periods = this.getPeriodSlots();
+    const period = periods.find((p) => p.id === periodSlotId);
+    const periodName = period ? period.name : `Period #${periodSlotId}`;
+    const conflicts: TimetableConflict[] = [];
+
+    const normalizedRoom = roomNumber.trim().toLowerCase();
+
+    for (const e of allEntries) {
+      if (excludeEntryId && e.id === excludeEntryId) continue;
+      if (e.dayOfWeek === dayOfWeek && e.periodSlotId === periodSlotId) {
+        // Teacher conflict
+        if (e.teacherId === teacherId) {
+          conflicts.push({
+            conflictType: 'teacher',
+            message: `Teacher Double-Booking: ${e.teacherName} is already assigned to ${e.className} (${e.sectionName || 'All'}) on ${dayOfWeek} during ${periodName}.`,
+            dayOfWeek,
+            periodName,
+            conflictingClass: e.className,
+          });
+        }
+        // Room conflict
+        if (e.roomNumber.trim().toLowerCase() === normalizedRoom) {
+          conflicts.push({
+            conflictType: 'room',
+            message: `Room Collision: ${e.roomNumber} is already booked by ${e.className} (${e.sectionName || 'All'}) on ${dayOfWeek} during ${periodName}.`,
+            dayOfWeek,
+            periodName,
+            conflictingClass: e.className,
+          });
+        }
+      }
+    }
+
+    return conflicts;
+  },
+
+  assignTimetableEntry(data: {
+    academicYearId: number;
+    classId: number;
+    sectionId?: number;
+    dayOfWeek: any;
+    periodSlotId: number;
+    subjectId: number;
+    teacherId: number;
+    roomNumber: string;
+    notes?: string;
+    id?: number;
+  }): { entry: TimetableEntryInfo | null; conflicts: TimetableConflict[] } {
+    const conflicts = this.checkTimetableConflict(
+      data.dayOfWeek,
+      data.periodSlotId,
+      data.teacherId,
+      data.roomNumber,
+      data.id
+    );
+
+    if (conflicts.length > 0) {
+      return { entry: null, conflicts };
+    }
+
+    const classes = this.getDetailedClasses();
+    const subjects = this.getSubjects();
+    const teachers = this.getTeachers();
+    const periods = this.getPeriodSlots();
+    const sections = this.getSections();
+
+    const targetClass = classes.find((c) => c.id === data.classId);
+    const targetSubject = subjects.find((s) => s.id === data.subjectId);
+    const targetTeacher = teachers.find((t) => t.id === data.teacherId);
+    const targetPeriod = periods.find((p) => p.id === data.periodSlotId);
+    const targetSection = data.sectionId ? sections.find((s) => s.id === data.sectionId) : undefined;
+
+    const allEntries = this.getTimetableEntries();
+
+    const entryRecord: TimetableEntryInfo = {
+      id: data.id || (allEntries.length > 0 ? Math.max(...allEntries.map((e) => e.id)) + 1 : 1),
+      academicYearId: data.academicYearId || 1,
+      classId: data.classId,
+      className: targetClass ? targetClass.name : 'Unknown Class',
+      sectionId: data.sectionId,
+      sectionName: targetSection ? targetSection.name : undefined,
+      dayOfWeek: data.dayOfWeek,
+      periodSlotId: data.periodSlotId,
+      periodName: targetPeriod ? targetPeriod.name : 'Period',
+      periodTime: targetPeriod ? `${targetPeriod.startTime} - ${targetPeriod.endTime}` : '',
+      subjectId: data.subjectId,
+      subjectName: targetSubject ? targetSubject.name : 'Subject',
+      subjectCode: targetSubject ? targetSubject.code : 'SUB',
+      teacherId: data.teacherId,
+      teacherName: targetTeacher ? targetTeacher.fullName : 'Teacher',
+      roomNumber: data.roomNumber,
+      notes: data.notes || '',
+    };
+
+    if (data.id) {
+      const idx = allEntries.findIndex((e) => e.id === data.id);
+      if (idx >= 0) allEntries[idx] = entryRecord;
+    } else {
+      // If class already has assignment for this day & period, replace it
+      const existingIdx = allEntries.findIndex(
+        (e) =>
+          e.classId === data.classId &&
+          e.sectionId === data.sectionId &&
+          e.dayOfWeek === data.dayOfWeek &&
+          e.periodSlotId === data.periodSlotId
+      );
+      if (existingIdx >= 0) {
+        entryRecord.id = allEntries[existingIdx].id;
+        allEntries[existingIdx] = entryRecord;
+      } else {
+        allEntries.push(entryRecord);
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEYS.TIMETABLE_ENTRIES, JSON.stringify(allEntries));
+    return { entry: entryRecord, conflicts: [] };
+  },
+
+  deleteTimetableEntry(id: number): boolean {
+    const entries = this.getTimetableEntries();
+    const filtered = entries.filter((e) => e.id !== id);
+    if (filtered.length === entries.length) return false;
+    localStorage.setItem(STORAGE_KEYS.TIMETABLE_ENTRIES, JSON.stringify(filtered));
+    return true;
+  },
+
+  getClassTimetableMatrix(classId: number, sectionId?: number): Record<string, Record<number, TimetableEntryInfo>> {
+    const entries = this.getTimetableEntries(classId, sectionId);
+    const matrix: Record<string, Record<number, TimetableEntryInfo>> = {};
+    for (const e of entries) {
+      if (!matrix[e.dayOfWeek]) matrix[e.dayOfWeek] = {};
+      matrix[e.dayOfWeek][e.periodSlotId] = e;
+    }
+    return matrix;
+  },
+
+  getTeacherRoutineMatrix(teacherId: number): Record<string, Record<number, TimetableEntryInfo>> {
+    const entries = this.getTimetableEntries(undefined, undefined, teacherId);
+    const matrix: Record<string, Record<number, TimetableEntryInfo>> = {};
+    for (const e of entries) {
+      if (!matrix[e.dayOfWeek]) matrix[e.dayOfWeek] = {};
+      matrix[e.dayOfWeek][e.periodSlotId] = e;
+    }
+    return matrix;
+  },
+
+  getTimetableStats() {
+    const periods = this.getPeriodSlots();
+    const entries = this.getTimetableEntries();
+    const teachingPeriods = periods.filter((p) => !p.isBreak);
+    const activeTeachers = new Set(entries.map((e) => e.teacherId)).size;
+    const rooms = new Set(entries.map((e) => e.roomNumber)).size;
+
+    return {
+      totalPeriods: periods.length,
+      teachingPeriodsCount: teachingPeriods.length,
+      totalAssignedSlots: entries.length,
+      activeTeachingFaculty: activeTeachers,
+      allocatedRooms: rooms,
+    };
+  },
 };
 
 const DEFAULT_FEE_CATEGORIES: FeeCategoryInfo[] = [
@@ -2234,6 +2947,863 @@ const DEFAULT_STUDENT_FEES: StudentFeeInvoice[] = [
   },
 ];
 
+const DEFAULT_ACCOUNT_CATEGORIES: AccountCategoryInfo[] = [
+  { id: 1, name: 'Student Fees & Tuition', code: 'INC-FEES', type: 'Income', description: 'Student regular tuition and session fees', isSystem: true, isActive: true },
+  { id: 2, name: 'Government & Board Grants', code: 'INC-GRNT', type: 'Income', description: 'Government education subsidies & stipends', isSystem: true, isActive: true },
+  { id: 3, name: 'Philanthropic Donations & Endowments', code: 'INC-DONT', type: 'Income', description: 'Trustee gifts, patron contributions, and alumni endowment', isSystem: false, isActive: true },
+  { id: 4, name: 'Facilities & Hall Rentals', code: 'INC-RENT', type: 'Income', description: 'Auditorium and playground event rental revenues', isSystem: false, isActive: true },
+  { id: 5, name: 'Other School Incomes', code: 'INC-MISC', type: 'Income', description: 'Syllabus sales, ID replacements, and sundry receipts', isSystem: false, isActive: true },
+  { id: 6, name: 'Teacher Salaries & Honorarium', code: 'EXP-TSAL', type: 'Expense', description: 'Monthly payroll for academic faculty', isSystem: true, isActive: true },
+  { id: 7, name: 'Staff Salaries & Allowances', code: 'EXP-SSAL', type: 'Expense', description: 'Payroll for non-teaching administrative and support staff', isSystem: true, isActive: true },
+  { id: 8, name: 'Electricity & Water Utilities', code: 'EXP-UTIL', type: 'Expense', description: 'DESCO electricity and municipal utilities', isSystem: true, isActive: true },
+  { id: 9, name: 'Internet, IT & Software', code: 'EXP-IT', type: 'Expense', description: 'Broadband internet, domains, and IT lab maintenance', isSystem: false, isActive: true },
+  { id: 10, name: 'Campus Building & Maintenance', code: 'EXP-MAINT', type: 'Expense', description: 'Facility maintenance, whitewash, and repairs', isSystem: false, isActive: true },
+  { id: 11, name: 'Office Supplies & Stationery', code: 'EXP-STAT', type: 'Expense', description: 'Printing papers, toner, registers, and office stationery', isSystem: false, isActive: true },
+  { id: 12, name: 'Sports, Cultural & Annual Events', code: 'EXP-EVNT', type: 'Expense', description: 'Annual sports day, debate competitions, and awards', isSystem: false, isActive: true },
+  { id: 13, name: 'Exam Papers & Printing Logistics', code: 'EXP-EXAM', type: 'Expense', description: 'Test papers, answer booklets, and invigilation', isSystem: false, isActive: true },
+  { id: 14, name: 'General Miscellaneous Expenses', code: 'EXP-MISC', type: 'Expense', description: 'Refreshments, postages, and minor contingencies', isSystem: false, isActive: true },
+];
+
+const DEFAULT_ACCOUNT_TRANSACTIONS: AccountTransactionRecord[] = [
+  {
+    id: 1,
+    voucherNo: 'VCH-2026-INC-00001',
+    transactionDate: '2026-03-01',
+    type: 'Income',
+    categoryId: 1,
+    categoryName: 'Student Fees & Tuition',
+    categoryCode: 'INC-FEES',
+    amount: 72500,
+    paymentMethod: 'Bank Transfer',
+    referenceNo: 'IBBL-CR-99201',
+    paidToReceivedFrom: 'Accounts Collection Counter Batch #1',
+    description: 'Consolidated Class 9 & 10 tuition fees deposit',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 2,
+    voucherNo: 'VCH-2026-INC-00002',
+    transactionDate: '2026-03-02',
+    type: 'Income',
+    categoryId: 2,
+    categoryName: 'Government & Board Grants',
+    categoryCode: 'INC-GRNT',
+    amount: 50000,
+    paymentMethod: 'Bank Transfer',
+    referenceNo: 'BB-EFT-40019',
+    paidToReceivedFrom: 'Directorate of Secondary Education (DSHE)',
+    description: 'Annual secondary school laboratory development grant tranche',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 3,
+    voucherNo: 'VCH-2026-INC-00003',
+    transactionDate: '2026-03-04',
+    type: 'Income',
+    categoryId: 3,
+    categoryName: 'Philanthropic Donations & Endowments',
+    categoryCode: 'INC-DONT',
+    amount: 30000,
+    paymentMethod: 'Cheque',
+    referenceNo: 'CHQ-DBBL-7712',
+    paidToReceivedFrom: 'Al-Haj Latif Welfare Foundation',
+    description: 'Scholarship endowment for underprivileged students',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 4,
+    voucherNo: 'VCH-2026-EXP-00001',
+    transactionDate: '2026-03-05',
+    type: 'Expense',
+    categoryId: 6,
+    categoryName: 'Teacher Salaries & Honorarium',
+    categoryCode: 'EXP-TSAL',
+    amount: 45000,
+    paymentMethod: 'Bank Transfer',
+    referenceNo: 'SAL-MAR-1001',
+    paidToReceivedFrom: 'Kamal Hossain (Head of Mathematics)',
+    description: 'February 2026 monthly salary and allowance transfer',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 5,
+    voucherNo: 'VCH-2026-EXP-00002',
+    transactionDate: '2026-03-05',
+    type: 'Expense',
+    categoryId: 7,
+    categoryName: 'Staff Salaries & Allowances',
+    categoryCode: 'EXP-SSAL',
+    amount: 28000,
+    paymentMethod: 'Bank Transfer',
+    referenceNo: 'SAL-MAR-2002',
+    paidToReceivedFrom: 'Farhana Yasmin (Head Librarian)',
+    description: 'February 2026 monthly payroll disbursement',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 6,
+    voucherNo: 'VCH-2026-EXP-00003',
+    transactionDate: '2026-03-06',
+    type: 'Expense',
+    categoryId: 8,
+    categoryName: 'Electricity & Water Utilities',
+    categoryCode: 'EXP-UTIL',
+    amount: 14250,
+    paymentMethod: 'Cash',
+    referenceNo: 'DESCO-BILL-88219',
+    paidToReceivedFrom: 'Dhaka Electric Supply Company (DESCO)',
+    description: 'February 2026 electricity bill for main academic building',
+    recordedBy: 'Tania Akter',
+    status: 'Approved',
+  },
+  {
+    id: 7,
+    voucherNo: 'VCH-2026-EXP-00004',
+    transactionDate: '2026-03-07',
+    type: 'Expense',
+    categoryId: 9,
+    categoryName: 'Internet, IT & Software',
+    categoryCode: 'EXP-IT',
+    amount: 6500,
+    paymentMethod: 'bKash',
+    referenceNo: 'BK-TRX-55192A',
+    paidToReceivedFrom: 'AmberIT Broadband Services Ltd.',
+    description: 'Dedicated 100 Mbps optical fiber internet for computer lab',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 8,
+    voucherNo: 'VCH-2026-EXP-00005',
+    transactionDate: '2026-03-08',
+    type: 'Expense',
+    categoryId: 11,
+    categoryName: 'Office Supplies & Stationery',
+    categoryCode: 'EXP-STAT',
+    amount: 8400,
+    paymentMethod: 'Cash',
+    referenceNo: 'CASH-MEMO-4410',
+    paidToReceivedFrom: 'Bismillah Stationery Mart',
+    description: 'Purchased 20 reams A4 paper, whiteboard markers, official registers',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+  {
+    id: 9,
+    voucherNo: 'VCH-2026-EXP-00006',
+    transactionDate: '2026-03-08',
+    type: 'Expense',
+    categoryId: 10,
+    categoryName: 'Campus Building & Maintenance',
+    categoryCode: 'EXP-MAINT',
+    amount: 9800,
+    paymentMethod: 'Cash',
+    referenceNo: 'VOUCHER-MAINT-102',
+    paidToReceivedFrom: 'M/S Uttara Electric & Plumbing Works',
+    description: 'Repair of 8 classroom ceiling fans and science lab water lines',
+    recordedBy: 'Shafiqul Alam',
+    status: 'Approved',
+  },
+];
+
+const DEFAULT_EXAM_TERMS: ExamTermInfo[] = [
+  {
+    id: 1,
+    name: '1st Term Examination 2026',
+    examCode: 'EXM-2026-T1',
+    academicYearId: 1,
+    academicYearName: '2025-2026',
+    startDate: '2026-04-10',
+    endDate: '2026-04-24',
+    status: 'Published',
+    description: 'First terminal examination for all classes from Class 1 to 12.',
+  },
+  {
+    id: 2,
+    name: 'Mid-Term Examination 2026',
+    examCode: 'EXM-2026-MT',
+    academicYearId: 1,
+    academicYearName: '2025-2026',
+    startDate: '2026-08-15',
+    endDate: '2026-08-30',
+    status: 'In Progress',
+    description: 'Mid-term evaluation and model assessment before board exams.',
+  },
+  {
+    id: 3,
+    name: 'Annual Final Examination 2026',
+    examCode: 'EXM-2026-FN',
+    academicYearId: 1,
+    academicYearName: '2025-2026',
+    startDate: '2026-11-20',
+    endDate: '2026-12-05',
+    status: 'Scheduled',
+    description: 'Session final promotional examination for academic year 2025-2026.',
+  },
+];
+
+const DEFAULT_GRADING_SCALES: GradingScaleInfo[] = [
+  { id: 1, gradeName: 'A+', gradePoint: 5.0, markFrom: 80, markTo: 100, remarks: 'Outstanding' },
+  { id: 2, gradeName: 'A', gradePoint: 4.0, markFrom: 70, markTo: 79.99, remarks: 'Excellent' },
+  { id: 3, gradeName: 'A-', gradePoint: 3.5, markFrom: 60, markTo: 69.99, remarks: 'Very Good' },
+  { id: 4, gradeName: 'B', gradePoint: 3.0, markFrom: 50, markTo: 59.99, remarks: 'Good' },
+  { id: 5, gradeName: 'C', gradePoint: 2.0, markFrom: 40, markTo: 49.99, remarks: 'Satisfactory' },
+  { id: 6, gradeName: 'D', gradePoint: 1.0, markFrom: 33, markTo: 39.99, remarks: 'Pass' },
+  { id: 7, gradeName: 'F', gradePoint: 0.0, markFrom: 0, markTo: 32.99, remarks: 'Fail' },
+];
+
+const DEFAULT_EXAM_SCHEDULES: ExamScheduleInfo[] = [
+  {
+    id: 1,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 1,
+    subjectName: 'Bangla 1st Paper',
+    subjectCode: 'BAN-101',
+    examDate: '2026-04-12',
+    startTime: '10:00 AM',
+    endTime: '01:00 PM',
+    roomNumber: 'Room 301',
+    fullMarks: 100,
+    theoryFull: 70,
+    mcqFull: 30,
+    practicalFull: 0,
+  },
+  {
+    id: 2,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 2,
+    subjectName: 'English 1st Paper',
+    subjectCode: 'ENG-107',
+    examDate: '2026-04-15',
+    startTime: '10:00 AM',
+    endTime: '01:00 PM',
+    roomNumber: 'Room 301',
+    fullMarks: 100,
+    theoryFull: 100,
+    mcqFull: 0,
+    practicalFull: 0,
+  },
+  {
+    id: 3,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 3,
+    subjectName: 'General Mathematics',
+    subjectCode: 'MAT-109',
+    examDate: '2026-04-18',
+    startTime: '10:00 AM',
+    endTime: '01:00 PM',
+    roomNumber: 'Room 302',
+    fullMarks: 100,
+    theoryFull: 70,
+    mcqFull: 30,
+    practicalFull: 0,
+  },
+  {
+    id: 4,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 4,
+    subjectName: 'Physics',
+    subjectCode: 'PHY-136',
+    examDate: '2026-04-20',
+    startTime: '10:00 AM',
+    endTime: '01:00 PM',
+    roomNumber: 'Science Lab 1',
+    fullMarks: 100,
+    theoryFull: 50,
+    mcqFull: 25,
+    practicalFull: 25,
+  },
+  {
+    id: 5,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 5,
+    subjectName: 'Chemistry',
+    subjectCode: 'CHE-137',
+    examDate: '2026-04-22',
+    startTime: '10:00 AM',
+    endTime: '01:00 PM',
+    roomNumber: 'Science Lab 2',
+    fullMarks: 100,
+    theoryFull: 50,
+    mcqFull: 25,
+    practicalFull: 25,
+  },
+  {
+    id: 6,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 6,
+    subjectName: 'Information & Communication Tech',
+    subjectCode: 'ICT-154',
+    examDate: '2026-04-24',
+    startTime: '10:00 AM',
+    endTime: '12:00 PM',
+    roomNumber: 'Computer Lab 1',
+    fullMarks: 100,
+    theoryFull: 50,
+    mcqFull: 25,
+    practicalFull: 25,
+  },
+];
+
+const DEFAULT_STUDENT_MARKS: StudentMarkRecord[] = [
+  // Student 1 (Tanvir Ahmed, Roll 1, Class 10)
+  {
+    id: 1,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 1,
+    subjectName: 'Bangla 1st Paper',
+    subjectCode: 'BAN-101',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    theoryMarks: 62,
+    mcqMarks: 26,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 88,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Splendid essay composition',
+  },
+  {
+    id: 2,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 2,
+    subjectName: 'English 1st Paper',
+    subjectCode: 'ENG-107',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    theoryMarks: 85,
+    mcqMarks: 0,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 85,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Excellent grammatical precision',
+  },
+  {
+    id: 3,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 3,
+    subjectName: 'General Mathematics',
+    subjectCode: 'MAT-109',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    theoryMarks: 65,
+    mcqMarks: 28,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 93,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Flawless problem solving',
+  },
+  {
+    id: 4,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 4,
+    subjectName: 'Physics',
+    subjectCode: 'PHY-136',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    theoryMarks: 44,
+    mcqMarks: 23,
+    practicalMarks: 24,
+    caMarks: 0,
+    totalMarks: 91,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Clear conceptual diagrams',
+  },
+  {
+    id: 5,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 5,
+    subjectName: 'Chemistry',
+    subjectCode: 'CHE-137',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    theoryMarks: 42,
+    mcqMarks: 22,
+    practicalMarks: 23,
+    caMarks: 0,
+    totalMarks: 87,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Solid titration experiment',
+  },
+  {
+    id: 6,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 6,
+    subjectName: 'Information & Communication Tech',
+    subjectCode: 'ICT-154',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    theoryMarks: 46,
+    mcqMarks: 24,
+    practicalMarks: 25,
+    caMarks: 0,
+    totalMarks: 95,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Distinction in HTML & Algorithms',
+  },
+
+  // Student 2 (Nusrat Jahan, Roll 2, Class 10)
+  {
+    id: 7,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 1,
+    subjectName: 'Bangla 1st Paper',
+    subjectCode: 'BAN-101',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    theoryMarks: 58,
+    mcqMarks: 24,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 82,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Very neat presentation',
+  },
+  {
+    id: 8,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 2,
+    subjectName: 'English 1st Paper',
+    subjectCode: 'ENG-107',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    theoryMarks: 76,
+    mcqMarks: 0,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 76,
+    isAbsent: false,
+    gradeName: 'A',
+    gradePoint: 4.0,
+    isPassed: true,
+    remarks: 'Good vocabulary',
+  },
+  {
+    id: 9,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 3,
+    subjectName: 'General Mathematics',
+    subjectCode: 'MAT-109',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    theoryMarks: 60,
+    mcqMarks: 25,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 85,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Accurate geometry proofs',
+  },
+  {
+    id: 10,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 4,
+    subjectName: 'Physics',
+    subjectCode: 'PHY-136',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    theoryMarks: 38,
+    mcqMarks: 20,
+    practicalMarks: 22,
+    caMarks: 0,
+    totalMarks: 80,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Good lab work',
+  },
+  {
+    id: 11,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 5,
+    subjectName: 'Chemistry',
+    subjectCode: 'CHE-137',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    theoryMarks: 36,
+    mcqMarks: 18,
+    practicalMarks: 20,
+    caMarks: 0,
+    totalMarks: 74,
+    isAbsent: false,
+    gradeName: 'A',
+    gradePoint: 4.0,
+    isPassed: true,
+    remarks: 'Needs slight organic formula practice',
+  },
+  {
+    id: 12,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 6,
+    subjectName: 'Information & Communication Tech',
+    subjectCode: 'ICT-154',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    theoryMarks: 42,
+    mcqMarks: 22,
+    practicalMarks: 24,
+    caMarks: 0,
+    totalMarks: 88,
+    isAbsent: false,
+    gradeName: 'A+',
+    gradePoint: 5.0,
+    isPassed: true,
+    remarks: 'Proficient database queries',
+  },
+
+  // Student 3 (Farhan Kabir, Roll 3, Class 10)
+  {
+    id: 13,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 1,
+    subjectName: 'Bangla 1st Paper',
+    subjectCode: 'BAN-101',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    theoryMarks: 48,
+    mcqMarks: 20,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 68,
+    isAbsent: false,
+    gradeName: 'A-',
+    gradePoint: 3.5,
+    isPassed: true,
+    remarks: 'Satisfactory handwriting',
+  },
+  {
+    id: 14,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 2,
+    subjectName: 'English 1st Paper',
+    subjectCode: 'ENG-107',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    theoryMarks: 64,
+    mcqMarks: 0,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 64,
+    isAbsent: false,
+    gradeName: 'A-',
+    gradePoint: 3.5,
+    isPassed: true,
+    remarks: 'Fair reading comprehension',
+  },
+  {
+    id: 15,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 3,
+    subjectName: 'General Mathematics',
+    subjectCode: 'MAT-109',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    theoryMarks: 52,
+    mcqMarks: 21,
+    practicalMarks: 0,
+    caMarks: 0,
+    totalMarks: 73,
+    isAbsent: false,
+    gradeName: 'A',
+    gradePoint: 4.0,
+    isPassed: true,
+    remarks: 'Good algebra calculations',
+  },
+  {
+    id: 16,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 4,
+    subjectName: 'Physics',
+    subjectCode: 'PHY-136',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    theoryMarks: 32,
+    mcqMarks: 16,
+    practicalMarks: 19,
+    caMarks: 0,
+    totalMarks: 67,
+    isAbsent: false,
+    gradeName: 'A-',
+    gradePoint: 3.5,
+    isPassed: true,
+    remarks: 'Understands basic principles',
+  },
+  {
+    id: 17,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 5,
+    subjectName: 'Chemistry',
+    subjectCode: 'CHE-137',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    theoryMarks: 30,
+    mcqMarks: 15,
+    practicalMarks: 18,
+    caMarks: 0,
+    totalMarks: 63,
+    isAbsent: false,
+    gradeName: 'A-',
+    gradePoint: 3.5,
+    isPassed: true,
+    remarks: 'Periodic table knowledge is good',
+  },
+  {
+    id: 18,
+    examTermId: 1,
+    classId: 5,
+    className: 'Class 10',
+    subjectId: 6,
+    subjectName: 'Information & Communication Tech',
+    subjectCode: 'ICT-154',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    theoryMarks: 34,
+    mcqMarks: 18,
+    practicalMarks: 20,
+    caMarks: 0,
+    totalMarks: 72,
+    isAbsent: false,
+    gradeName: 'A',
+    gradePoint: 4.0,
+    isPassed: true,
+    remarks: 'Active in computer lab classes',
+  },
+];
+
+const DEFAULT_EXAM_RESULT_SUMMARIES: ExamResultSummaryInfo[] = [
+  {
+    id: 1,
+    examTermId: 1,
+    examTermName: '1st Term Examination 2026',
+    studentId: 1,
+    studentCode: 'STD-2025-001',
+    studentName: 'Tanvir Ahmed',
+    rollNumber: 1,
+    classId: 5,
+    className: 'Class 10',
+    sectionName: 'Padma',
+    totalObtained: 549,
+    totalFullMarks: 600,
+    percentage: 91.5,
+    gpa: 5.0,
+    overallGrade: 'A+',
+    classRank: 1,
+    passedAll: true,
+    failedSubjectCount: 0,
+    remarks: 'Golden A+ (Outstanding)',
+  },
+  {
+    id: 2,
+    examTermId: 1,
+    examTermName: '1st Term Examination 2026',
+    studentId: 2,
+    studentCode: 'STD-2025-002',
+    studentName: 'Nusrat Jahan',
+    rollNumber: 2,
+    classId: 5,
+    className: 'Class 10',
+    sectionName: 'Padma',
+    totalObtained: 475,
+    totalFullMarks: 600,
+    percentage: 79.17,
+    gpa: 4.67,
+    overallGrade: 'A',
+    classRank: 2,
+    passedAll: true,
+    failedSubjectCount: 0,
+    remarks: 'Passed Successfully with Distinction',
+  },
+  {
+    id: 3,
+    examTermId: 1,
+    examTermName: '1st Term Examination 2026',
+    studentId: 3,
+    studentCode: 'STD-2025-003',
+    studentName: 'Farhan Kabir',
+    rollNumber: 3,
+    classId: 5,
+    className: 'Class 10',
+    sectionName: 'Meghna',
+    totalObtained: 407,
+    totalFullMarks: 600,
+    percentage: 67.83,
+    gpa: 3.67,
+    overallGrade: 'A-',
+    classRank: 3,
+    passedAll: true,
+    failedSubjectCount: 0,
+    remarks: 'Passed Successfully',
+  },
+];
+
+const DEFAULT_PERIOD_SLOTS: PeriodSlotInfo[] = [
+  { id: 1, periodNumber: 0, name: 'Assembly & Homeroom', startTime: '08:30 AM', endTime: '08:45 AM', durationMinutes: 15, isBreak: true, shift: 'Morning' },
+  { id: 2, periodNumber: 1, name: '1st Period', startTime: '08:45 AM', endTime: '09:30 AM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+  { id: 3, periodNumber: 2, name: '2nd Period', startTime: '09:30 AM', endTime: '10:15 AM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+  { id: 4, periodNumber: 3, name: '3rd Period', startTime: '10:15 AM', endTime: '11:00 AM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+  { id: 5, periodNumber: 4, name: '4th Period', startTime: '11:00 AM', endTime: '11:45 AM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+  { id: 6, periodNumber: 99, name: 'Tiffin & Refreshment', startTime: '11:45 AM', endTime: '12:30 PM', durationMinutes: 45, isBreak: true, shift: 'Morning' },
+  { id: 7, periodNumber: 5, name: '5th Period', startTime: '12:30 PM', endTime: '01:15 PM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+  { id: 8, periodNumber: 6, name: '6th Period', startTime: '01:15 PM', endTime: '02:00 PM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+  { id: 9, periodNumber: 7, name: '7th Period', startTime: '02:00 PM', endTime: '02:45 PM', durationMinutes: 45, isBreak: false, shift: 'Morning' },
+];
+
+const DEFAULT_TIMETABLE_ENTRIES: TimetableEntryInfo[] = [
+  // Class 10 (id: 5, Section: Padma)
+  // Sunday
+  { id: 1, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 2, periodName: '1st Period', periodTime: '08:45 AM - 09:30 AM', subjectId: 3, subjectName: 'General Mathematics', subjectCode: 'MAT-109', teacherId: 1, teacherName: 'Dr. Mohammad Rafiqul Islam', roomNumber: 'Room 301' },
+  { id: 2, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 3, periodName: '2nd Period', periodTime: '09:30 AM - 10:15 AM', subjectId: 2, subjectName: 'English 1st Paper', subjectCode: 'ENG-107', teacherId: 2, teacherName: 'Nasreen Sultana', roomNumber: 'Room 301' },
+  { id: 3, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 4, periodName: '3rd Period', periodTime: '10:15 AM - 11:00 AM', subjectId: 4, subjectName: 'Physics', subjectCode: 'PHY-136', teacherId: 3, teacherName: 'Shahidul Alam', roomNumber: 'Science Lab 1' },
+  { id: 4, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 5, periodName: '4th Period', periodTime: '11:00 AM - 11:45 AM', subjectId: 1, subjectName: 'Bangla 1st Paper', subjectCode: 'BAN-101', teacherId: 4, teacherName: 'Farhana Yasmin', roomNumber: 'Room 301' },
+  { id: 5, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 7, periodName: '5th Period', periodTime: '12:30 PM - 01:15 PM', subjectId: 5, subjectName: 'Chemistry', subjectCode: 'CHE-137', teacherId: 5, teacherName: 'Kamal Hossain', roomNumber: 'Science Lab 2' },
+  { id: 6, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 8, periodName: '6th Period', periodTime: '01:15 PM - 02:00 PM', subjectId: 6, subjectName: 'Information & Communication Tech', subjectCode: 'ICT-154', teacherId: 6, teacherName: 'Anisur Rahman', roomNumber: 'Computer Lab 1' },
+  { id: 7, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Sunday', periodSlotId: 9, periodName: '7th Period', periodTime: '02:00 PM - 02:45 PM', subjectId: 3, subjectName: 'General Mathematics', subjectCode: 'MAT-109', teacherId: 1, teacherName: 'Dr. Mohammad Rafiqul Islam', roomNumber: 'Room 301' },
+
+  // Monday
+  { id: 8, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Monday', periodSlotId: 2, periodName: '1st Period', periodTime: '08:45 AM - 09:30 AM', subjectId: 4, subjectName: 'Physics', subjectCode: 'PHY-136', teacherId: 3, teacherName: 'Shahidul Alam', roomNumber: 'Science Lab 1' },
+  { id: 9, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Monday', periodSlotId: 3, periodName: '2nd Period', periodTime: '09:30 AM - 10:15 AM', subjectId: 5, subjectName: 'Chemistry', subjectCode: 'CHE-137', teacherId: 5, teacherName: 'Kamal Hossain', roomNumber: 'Science Lab 2' },
+  { id: 10, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Monday', periodSlotId: 4, periodName: '3rd Period', periodTime: '10:15 AM - 11:00 AM', subjectId: 3, subjectName: 'General Mathematics', subjectCode: 'MAT-109', teacherId: 1, teacherName: 'Dr. Mohammad Rafiqul Islam', roomNumber: 'Room 301' },
+  { id: 11, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Monday', periodSlotId: 5, periodName: '4th Period', periodTime: '11:00 AM - 11:45 AM', subjectId: 2, subjectName: 'English 1st Paper', subjectCode: 'ENG-107', teacherId: 2, teacherName: 'Nasreen Sultana', roomNumber: 'Room 301' },
+  { id: 12, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Monday', periodSlotId: 7, periodName: '5th Period', periodTime: '12:30 PM - 01:15 PM', subjectId: 1, subjectName: 'Bangla 1st Paper', subjectCode: 'BAN-101', teacherId: 4, teacherName: 'Farhana Yasmin', roomNumber: 'Room 301' },
+  { id: 13, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Monday', periodSlotId: 8, periodName: '6th Period', periodTime: '01:15 PM - 02:00 PM', subjectId: 6, subjectName: 'Information & Communication Tech', subjectCode: 'ICT-154', teacherId: 6, teacherName: 'Anisur Rahman', roomNumber: 'Computer Lab 1' },
+
+  // Tuesday
+  { id: 14, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Tuesday', periodSlotId: 2, periodName: '1st Period', periodTime: '08:45 AM - 09:30 AM', subjectId: 2, subjectName: 'English 1st Paper', subjectCode: 'ENG-107', teacherId: 2, teacherName: 'Nasreen Sultana', roomNumber: 'Room 301' },
+  { id: 15, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Tuesday', periodSlotId: 3, periodName: '2nd Period', periodTime: '09:30 AM - 10:15 AM', subjectId: 1, subjectName: 'Bangla 1st Paper', subjectCode: 'BAN-101', teacherId: 4, teacherName: 'Farhana Yasmin', roomNumber: 'Room 301' },
+  { id: 16, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Tuesday', periodSlotId: 4, periodName: '3rd Period', periodTime: '10:15 AM - 11:00 AM', subjectId: 5, subjectName: 'Chemistry', subjectCode: 'CHE-137', teacherId: 5, teacherName: 'Kamal Hossain', roomNumber: 'Science Lab 2' },
+  { id: 17, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Tuesday', periodSlotId: 5, periodName: '4th Period', periodTime: '11:00 AM - 11:45 AM', subjectId: 4, subjectName: 'Physics', subjectCode: 'PHY-136', teacherId: 3, teacherName: 'Shahidul Alam', roomNumber: 'Science Lab 1' },
+  { id: 18, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Tuesday', periodSlotId: 7, periodName: '5th Period', periodTime: '12:30 PM - 01:15 PM', subjectId: 3, subjectName: 'General Mathematics', subjectCode: 'MAT-109', teacherId: 1, teacherName: 'Dr. Mohammad Rafiqul Islam', roomNumber: 'Room 301' },
+
+  // Wednesday
+  { id: 19, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Wednesday', periodSlotId: 2, periodName: '1st Period', periodTime: '08:45 AM - 09:30 AM', subjectId: 3, subjectName: 'General Mathematics', subjectCode: 'MAT-109', teacherId: 1, teacherName: 'Dr. Mohammad Rafiqul Islam', roomNumber: 'Room 301' },
+  { id: 20, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Wednesday', periodSlotId: 3, periodName: '2nd Period', periodTime: '09:30 AM - 10:15 AM', subjectId: 6, subjectName: 'Information & Communication Tech', subjectCode: 'ICT-154', teacherId: 6, teacherName: 'Anisur Rahman', roomNumber: 'Computer Lab 1' },
+  { id: 21, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Wednesday', periodSlotId: 4, periodName: '3rd Period', periodTime: '10:15 AM - 11:00 AM', subjectId: 2, subjectName: 'English 1st Paper', subjectCode: 'ENG-107', teacherId: 2, teacherName: 'Nasreen Sultana', roomNumber: 'Room 301' },
+  { id: 22, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Wednesday', periodSlotId: 5, periodName: '4th Period', periodTime: '11:00 AM - 11:45 AM', subjectId: 1, subjectName: 'Bangla 1st Paper', subjectCode: 'BAN-101', teacherId: 4, teacherName: 'Farhana Yasmin', roomNumber: 'Room 301' },
+  { id: 23, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Wednesday', periodSlotId: 7, periodName: '5th Period', periodTime: '12:30 PM - 01:15 PM', subjectId: 4, subjectName: 'Physics', subjectCode: 'PHY-136', teacherId: 3, teacherName: 'Shahidul Alam', roomNumber: 'Science Lab 1' },
+
+  // Thursday
+  { id: 24, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Thursday', periodSlotId: 2, periodName: '1st Period', periodTime: '08:45 AM - 09:30 AM', subjectId: 1, subjectName: 'Bangla 1st Paper', subjectCode: 'BAN-101', teacherId: 4, teacherName: 'Farhana Yasmin', roomNumber: 'Room 301' },
+  { id: 25, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Thursday', periodSlotId: 3, periodName: '2nd Period', periodTime: '09:30 AM - 10:15 AM', subjectId: 3, subjectName: 'General Mathematics', subjectCode: 'MAT-109', teacherId: 1, teacherName: 'Dr. Mohammad Rafiqul Islam', roomNumber: 'Room 301' },
+  { id: 26, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Thursday', periodSlotId: 4, periodName: '3rd Period', periodTime: '10:15 AM - 11:00 AM', subjectId: 5, subjectName: 'Chemistry', subjectCode: 'CHE-137', teacherId: 5, teacherName: 'Kamal Hossain', roomNumber: 'Science Lab 2' },
+  { id: 27, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Thursday', periodSlotId: 5, periodName: '4th Period', periodTime: '11:00 AM - 11:45 AM', subjectId: 2, subjectName: 'English 1st Paper', subjectCode: 'ENG-107', teacherId: 2, teacherName: 'Nasreen Sultana', roomNumber: 'Room 301' },
+  { id: 28, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Thursday', periodSlotId: 7, periodName: '5th Period', periodTime: '12:30 PM - 01:15 PM', subjectId: 6, subjectName: 'Information & Communication Tech', subjectCode: 'ICT-154', teacherId: 6, teacherName: 'Anisur Rahman', roomNumber: 'Computer Lab 1' },
+];
+
 export const storage = StorageService;
+
 
 

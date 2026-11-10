@@ -41,10 +41,10 @@ export const MODULE_ITEMS = [
   { id: 'academics', label: 'Academics', icon: BookOpen, badge: 'Live', phase: 4 },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck, badge: 'Live', phase: 5 },
   { id: 'fees', label: 'Fees & Billing', icon: CreditCard, badge: 'Live', phase: 6 },
-  { id: 'accounting', label: 'Accounting', icon: TrendingUp, badge: 'Phase 7', phase: 7 },
-  { id: 'exams', label: 'Exams', icon: FileSpreadsheet, badge: 'Phase 8', phase: 8 },
-  { id: 'results', label: 'Results & GPA', icon: Award, badge: 'Phase 8', phase: 8 },
-  { id: 'timetable', label: 'Timetable', icon: Clock, badge: 'Phase 9', phase: 9 },
+  { id: 'accounting', label: 'Accounting', icon: TrendingUp, badge: 'Live', phase: 7 },
+  { id: 'exams', label: 'Exams', icon: FileSpreadsheet, badge: 'Live', phase: 8 },
+  { id: 'results', label: 'Results & GPA', icon: Award, badge: 'Live', phase: 8 },
+  { id: 'timetable', label: 'Timetable', icon: Clock, badge: 'Live', phase: 9 },
   { id: 'library', label: 'Library', icon: Library, badge: 'Phase 10', phase: 10 },
   { id: 'transport', label: 'Transport', icon: Bus, badge: 'Phase 11', phase: 11 },
   { id: 'hostel', label: 'Hostel', icon: Building2, badge: 'Phase 12', phase: 12 },
@@ -53,7 +53,7 @@ export const MODULE_ITEMS = [
   { id: 'reports', label: 'Reports & Export', icon: FileBarChart, badge: 'Phase 14', phase: 14 },
   { id: 'certificates', label: 'Certificates & IDs', icon: BadgeCheck, badge: 'Phase 15', phase: 15 },
   { id: 'settings', label: 'School Settings', icon: Settings, badge: 'Active', phase: 1 },
-  { id: 'python_explorer', label: 'Python Source & EXE', icon: FileCode2, badge: 'Phases 1-6 Files', phase: 1, highlight: true },
+  { id: 'python_explorer', label: 'Python Source & EXE', icon: FileCode2, badge: 'Phases 1-9 Files', phase: 1, highlight: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

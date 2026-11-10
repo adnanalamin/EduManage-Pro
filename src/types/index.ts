@@ -290,5 +290,168 @@ export interface StudentFeeInvoice {
   payments: FeePaymentRecord[];
 }
 
+export interface AccountCategoryInfo {
+  id: number;
+  name: string;
+  code: string;
+  type: 'Income' | 'Expense';
+  description?: string;
+  isSystem: boolean;
+  isActive: boolean;
+}
+
+export interface AccountTransactionRecord {
+  id: number;
+  voucherNo: string;
+  transactionDate: string;
+  type: 'Income' | 'Expense';
+  categoryId: number;
+  categoryName: string;
+  categoryCode: string;
+  amount: number;
+  paymentMethod: 'Cash' | 'Bank Transfer' | 'bKash' | 'Nagad' | 'Cheque' | 'Card';
+  referenceNo?: string;
+  paidToReceivedFrom: string;
+  description?: string;
+  recordedBy: string;
+  status: 'Approved' | 'Pending' | 'Cancelled';
+}
+
+export interface FinancialSummary {
+  totalIncome: number;
+  totalExpense: number;
+  netSurplus: number;
+  cashInHand: number;
+  isProfit: boolean;
+}
+
+export interface ExamTermInfo {
+  id: number;
+  name: string;
+  examCode: string;
+  academicYearId: number;
+  academicYearName: string;
+  startDate: string;
+  endDate: string;
+  status: 'Scheduled' | 'In Progress' | 'Completed' | 'Published';
+  description?: string;
+}
+
+export interface GradingScaleInfo {
+  id: number;
+  gradeName: string;
+  gradePoint: number;
+  markFrom: number;
+  markTo: number;
+  remarks: string;
+}
+
+export interface ExamScheduleInfo {
+  id: number;
+  examTermId: number;
+  classId: number;
+  className: string;
+  subjectId: number;
+  subjectName: string;
+  subjectCode: string;
+  examDate: string;
+  startTime: string;
+  endTime: string;
+  roomNumber: string;
+  fullMarks: number;
+  theoryFull: number;
+  mcqFull: number;
+  practicalFull: number;
+}
+
+export interface StudentMarkRecord {
+  id: number;
+  examTermId: number;
+  classId: number;
+  className: string;
+  subjectId: number;
+  subjectName: string;
+  subjectCode: string;
+  studentId: number;
+  studentCode: string;
+  studentName: string;
+  rollNumber: number;
+  theoryMarks: number;
+  mcqMarks: number;
+  practicalMarks: number;
+  caMarks: number;
+  totalMarks: number;
+  isAbsent: boolean;
+  gradeName: string;
+  gradePoint: number;
+  isPassed: boolean;
+  remarks?: string;
+}
+
+export interface ExamResultSummaryInfo {
+  id: number;
+  examTermId: number;
+  examTermName: string;
+  studentId: number;
+  studentCode: string;
+  studentName: string;
+  rollNumber: number;
+  classId: number;
+  className: string;
+  sectionName?: string;
+  totalObtained: number;
+  totalFullMarks: number;
+  percentage: number;
+  gpa: number;
+  overallGrade: string;
+  classRank: number | null;
+  passedAll: boolean;
+  failedSubjectCount: number;
+  remarks?: string;
+}
+
+export interface PeriodSlotInfo {
+  id: number;
+  periodNumber: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isBreak: boolean;
+  shift: 'Morning' | 'Day';
+  academicYearId?: number;
+}
+
+export interface TimetableEntryInfo {
+  id: number;
+  academicYearId: number;
+  classId: number;
+  className: string;
+  sectionId?: number;
+  sectionName?: string;
+  dayOfWeek: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Saturday';
+  periodSlotId: number;
+  periodName: string;
+  periodTime: string;
+  subjectId: number;
+  subjectName: string;
+  subjectCode: string;
+  teacherId: number;
+  teacherName: string;
+  roomNumber: string;
+  notes?: string;
+}
+
+export interface TimetableConflict {
+  conflictType: 'teacher' | 'room';
+  message: string;
+  dayOfWeek: string;
+  periodName: string;
+  conflictingClass?: string;
+}
+
+
+
+
 
 
