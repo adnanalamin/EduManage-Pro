@@ -29,6 +29,24 @@ import {
   PeriodSlotInfo,
   TimetableEntryInfo,
   TimetableConflict,
+  BookCategoryInfo,
+  BookInfo,
+  LibraryMemberInfo,
+  BookCirculationRecord,
+  LibraryStatsInfo,
+  VehicleInfo,
+  TransportStopInfo,
+  TransportRouteInfo,
+  TransportPassengerInfo,
+  TransportStatsInfo,
+  HostelBlockInfo,
+  HostelRoomInfo,
+  HostelAllocationInfo,
+  HostelGatePassInfo,
+  HostelStatsInfo,
+  SchoolNoticeInfo,
+  SchoolEventInfo,
+  NoticeStatsInfo,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -60,6 +78,19 @@ const STORAGE_KEYS = {
   EXAM_RESULT_SUMMARIES: 'edumanage_exam_result_summaries',
   TIMETABLE_PERIODS: 'edumanage_timetable_periods',
   TIMETABLE_ENTRIES: 'edumanage_timetable_entries',
+  BOOK_CATEGORIES: 'edumanage_book_categories',
+  LIBRARY_BOOKS: 'edumanage_library_books',
+  LIBRARY_MEMBERS: 'edumanage_library_members',
+  BOOK_CIRCULATIONS: 'edumanage_book_circulations',
+  TRANSPORT_VEHICLES: 'edumanage_transport_vehicles',
+  TRANSPORT_ROUTES: 'edumanage_transport_routes',
+  TRANSPORT_PASSENGERS: 'edumanage_transport_passengers',
+  HOSTEL_BLOCKS: 'edumanage_hostel_blocks',
+  HOSTEL_ROOMS: 'edumanage_hostel_rooms',
+  HOSTEL_ALLOCATIONS: 'edumanage_hostel_allocations',
+  HOSTEL_GATE_PASSES: 'edumanage_hostel_gate_passes',
+  NOTICES: 'edumanage_school_notices',
+  EVENTS: 'edumanage_school_events',
 };
 
 const DEFAULT_SCHOOL_SETTINGS: SchoolSetting = {
@@ -2689,6 +2720,1038 @@ export const StorageService = {
       allocatedRooms: rooms,
     };
   },
+
+  // --- Phase 10: Library Circulation & Book Management ---
+  getBookCategories(): BookCategoryInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.BOOK_CATEGORIES);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.BOOK_CATEGORIES, JSON.stringify(DEFAULT_BOOK_CATEGORIES));
+      return DEFAULT_BOOK_CATEGORIES;
+    }
+    return JSON.parse(raw);
+  },
+
+  saveBookCategory(categoryData: Partial<BookCategoryInfo>): BookCategoryInfo {
+    const categories = this.getBookCategories();
+    if (categoryData.id) {
+      const idx = categories.findIndex((c) => c.id === categoryData.id);
+      if (idx !== -1) {
+        categories[idx] = { ...categories[idx], ...categoryData } as BookCategoryInfo;
+        localStorage.setItem(STORAGE_KEYS.BOOK_CATEGORIES, JSON.stringify(categories));
+        return categories[idx];
+      }
+    }
+    const newCategory: BookCategoryInfo = {
+      id: categories.length > 0 ? Math.max(...categories.map((c) => c.id)) + 1 : 1,
+      name: categoryData.name || 'New Category',
+      code: categoryData.code || 'CAT',
+      description: categoryData.description,
+    };
+    categories.push(newCategory);
+    localStorage.setItem(STORAGE_KEYS.BOOK_CATEGORIES, JSON.stringify(categories));
+    return newCategory;
+  },
+
+  getBooks(categoryId?: number, searchQuery?: string, onlyAvailable?: boolean): BookInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.LIBRARY_BOOKS);
+    let books: BookInfo[] = raw ? JSON.parse(raw) : DEFAULT_BOOKS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.LIBRARY_BOOKS, JSON.stringify(DEFAULT_BOOKS));
+    }
+    if (categoryId) {
+      books = books.filter((b) => b.categoryId === categoryId);
+    }
+    if (onlyAvailable) {
+      books = books.filter((b) => b.availableCopies > 0);
+    }
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      books = books.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          b.accessionNo.toLowerCase().includes(q) ||
+          (b.isbn && b.isbn.toLowerCase().includes(q))
+      );
+    }
+    return books;
+  },
+
+  getBookById(id: number): BookInfo | undefined {
+    return this.getBooks().find((b) => b.id === id);
+  },
+
+  saveBook(bookData: Partial<BookInfo>): BookInfo {
+    const books = this.getBooks();
+    const categories = this.getBookCategories();
+    const cat = categories.find((c) => c.id === bookData.categoryId);
+    const catName = cat ? cat.name : (bookData.categoryName || 'General');
+
+    if (bookData.id) {
+      const idx = books.findIndex((b) => b.id === bookData.id);
+      if (idx !== -1) {
+        const total = bookData.totalCopies ?? books[idx].totalCopies;
+        const issued = books[idx].issuedCopies;
+        const avail = Math.max(0, total - issued);
+        books[idx] = {
+          ...books[idx],
+          ...bookData,
+          categoryName: catName,
+          totalCopies: total,
+          availableCopies: avail,
+          status: avail > 0 ? 'Available' : 'Out of Stock',
+        } as BookInfo;
+        localStorage.setItem(STORAGE_KEYS.LIBRARY_BOOKS, JSON.stringify(books));
+        return books[idx];
+      }
+    }
+
+    const total = bookData.totalCopies ?? 1;
+    const newBook: BookInfo = {
+      id: books.length > 0 ? Math.max(...books.map((b) => b.id)) + 1 : 1,
+      accessionNo: bookData.accessionNo || `ACC-${new Date().getFullYear()}-${String(books.length + 1).padStart(4, '0')}`,
+      title: bookData.title || 'Untitled Book',
+      author: bookData.author || 'Unknown Author',
+      publisher: bookData.publisher,
+      isbn: bookData.isbn,
+      edition: bookData.edition,
+      publicationYear: bookData.publicationYear,
+      categoryId: bookData.categoryId || (categories[0]?.id || 1),
+      categoryName: catName,
+      rackNumber: bookData.rackNumber,
+      shelfNumber: bookData.shelfNumber,
+      totalCopies: total,
+      availableCopies: total,
+      issuedCopies: 0,
+      price: bookData.price ?? 20.0,
+      status: total > 0 ? 'Available' : 'Out of Stock',
+    };
+    books.push(newBook);
+    localStorage.setItem(STORAGE_KEYS.LIBRARY_BOOKS, JSON.stringify(books));
+    return newBook;
+  },
+
+  deleteBook(id: number): boolean {
+    const books = this.getBooks();
+    const filtered = books.filter((b) => b.id !== id);
+    if (filtered.length === books.length) return false;
+    localStorage.setItem(STORAGE_KEYS.LIBRARY_BOOKS, JSON.stringify(filtered));
+    return true;
+  },
+
+  getLibraryMembers(memberType?: string): LibraryMemberInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.LIBRARY_MEMBERS);
+    let members: LibraryMemberInfo[] = raw ? JSON.parse(raw) : DEFAULT_LIBRARY_MEMBERS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.LIBRARY_MEMBERS, JSON.stringify(DEFAULT_LIBRARY_MEMBERS));
+    }
+    // Update activeLoanCount dynamically
+    const circs = this.getCirculations('Active');
+    members = members.map((m) => ({
+      ...m,
+      activeLoanCount: circs.filter((c) => c.memberId === m.id).length,
+    }));
+    if (memberType) {
+      members = members.filter((m) => m.memberType === memberType);
+    }
+    return members;
+  },
+
+  getLibraryMemberById(id: number): LibraryMemberInfo | undefined {
+    return this.getLibraryMembers().find((m) => m.id === id);
+  },
+
+  saveLibraryMember(memberData: Partial<LibraryMemberInfo>): LibraryMemberInfo {
+    const members = this.getLibraryMembers();
+    if (memberData.id) {
+      const idx = members.findIndex((m) => m.id === memberData.id);
+      if (idx !== -1) {
+        members[idx] = { ...members[idx], ...memberData } as LibraryMemberInfo;
+        localStorage.setItem(STORAGE_KEYS.LIBRARY_MEMBERS, JSON.stringify(members));
+        return members[idx];
+      }
+    }
+    const newMember: LibraryMemberInfo = {
+      id: members.length > 0 ? Math.max(...members.map((m) => m.id)) + 1 : 1,
+      memberId: memberData.memberId || `LIB-MEM-${String(members.length + 1001)}`,
+      memberType: memberData.memberType || 'Student',
+      studentId: memberData.studentId,
+      teacherId: memberData.teacherId,
+      staffId: memberData.staffId,
+      patronName: memberData.patronName || 'New Member',
+      rollOrDesignation: memberData.rollOrDesignation,
+      cardIssueDate: memberData.cardIssueDate || new Date().toISOString().split('T')[0],
+      maxAllowedBooks: memberData.maxAllowedBooks || (memberData.memberType === 'Teacher' ? 5 : 3),
+      activeLoanCount: 0,
+      status: memberData.status || 'Active',
+    };
+    members.push(newMember);
+    localStorage.setItem(STORAGE_KEYS.LIBRARY_MEMBERS, JSON.stringify(members));
+    return newMember;
+  },
+
+  getCirculations(status?: string, memberId?: number, bookId?: number): BookCirculationRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.BOOK_CIRCULATIONS);
+    let circs: BookCirculationRecord[] = raw ? JSON.parse(raw) : DEFAULT_BOOK_CIRCULATIONS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.BOOK_CIRCULATIONS, JSON.stringify(DEFAULT_BOOK_CIRCULATIONS));
+    }
+    const today = new Date().toISOString().split('T')[0];
+    // Automatically update overdue status for unreturned loans past due date
+    circs = circs.map((c) => {
+      if (c.status === 'Issued' && c.dueDate < today) {
+        const diffDays = Math.max(0, Math.ceil((new Date(today).getTime() - new Date(c.dueDate).getTime()) / (1000 * 3600 * 24)));
+        return {
+          ...c,
+          status: 'Overdue' as const,
+          fineAmount: diffDays * 5.0,
+        };
+      }
+      return c;
+    });
+
+    if (status) {
+      if (status === 'Active') {
+        circs = circs.filter((c) => c.status === 'Issued' || c.status === 'Overdue');
+      } else {
+        circs = circs.filter((c) => c.status === status);
+      }
+    }
+    if (memberId) {
+      circs = circs.filter((c) => c.memberId === memberId);
+    }
+    if (bookId) {
+      circs = circs.filter((c) => c.bookId === bookId);
+    }
+    return circs.sort((a, b) => b.id - a.id);
+  },
+
+  issueBook(
+    bookId: number,
+    memberId: number,
+    issueDate: string,
+    dueDate: string,
+    issuedBy?: string,
+    remarks?: string
+  ): { success: boolean; message?: string; circulation?: BookCirculationRecord } {
+    const book = this.getBookById(bookId);
+    if (!book) return { success: false, message: 'Book title not found.' };
+    if (book.availableCopies <= 0) return { success: false, message: `No copies of '${book.title}' are available.` };
+
+    const member = this.getLibraryMemberById(memberId);
+    if (!member) return { success: false, message: 'Library patron member not found.' };
+    if (member.status !== 'Active') return { success: false, message: `Member is currently ${member.status}.` };
+
+    const activeLoans = this.getCirculations('Active', memberId);
+    if (activeLoans.length >= member.maxAllowedBooks) {
+      return { success: false, message: `Borrower has reached maximum limit of ${member.maxAllowedBooks} borrowed books.` };
+    }
+
+    // Decrement available copies
+    const books = this.getBooks();
+    const bIdx = books.findIndex((b) => b.id === bookId);
+    if (bIdx !== -1) {
+      books[bIdx].availableCopies -= 1;
+      books[bIdx].issuedCopies += 1;
+      books[bIdx].status = books[bIdx].availableCopies > 0 ? 'Available' : 'Out of Stock';
+      localStorage.setItem(STORAGE_KEYS.LIBRARY_BOOKS, JSON.stringify(books));
+    }
+
+    const circs = this.getCirculations();
+    const newCirc: BookCirculationRecord = {
+      id: circs.length > 0 ? Math.max(...circs.map((c) => c.id)) + 1 : 1,
+      bookId,
+      accessionNo: book.accessionNo,
+      bookTitle: book.title,
+      memberId,
+      memberCode: member.memberId,
+      patronName: member.patronName,
+      memberType: member.memberType,
+      issueDate,
+      dueDate,
+      status: 'Issued',
+      fineAmount: 0,
+      finePaid: false,
+      issuedBy: issuedBy || 'Chief Librarian',
+      remarks,
+    };
+    circs.unshift(newCirc);
+    localStorage.setItem(STORAGE_KEYS.BOOK_CIRCULATIONS, JSON.stringify(circs));
+    return { success: true, circulation: newCirc };
+  },
+
+  returnBook(
+    circulationId: number,
+    returnDate: string,
+    fineRatePerDay: number = 5.0,
+    finePaid: boolean = false,
+    remarks?: string
+  ): { success: boolean; message?: string; circulation?: BookCirculationRecord } {
+    const circs = this.getCirculations();
+    const idx = circs.findIndex((c) => c.id === circulationId);
+    if (idx === -1) return { success: false, message: 'Circulation record not found.' };
+    if (circs[idx].status === 'Returned') return { success: false, message: 'Book has already been returned.' };
+
+    const target = circs[idx];
+    const dueTime = new Date(target.dueDate).getTime();
+    const retTime = new Date(returnDate).getTime();
+    const diffDays = Math.max(0, Math.ceil((retTime - dueTime) / (1000 * 3600 * 24)));
+    const fineAmt = diffDays * fineRatePerDay;
+
+    target.returnDate = returnDate;
+    target.status = 'Returned';
+    target.fineAmount = fineAmt;
+    target.finePaid = finePaid || fineAmt === 0;
+    if (remarks) target.remarks = remarks;
+
+    localStorage.setItem(STORAGE_KEYS.BOOK_CIRCULATIONS, JSON.stringify(circs));
+
+    // Replenish copy count
+    const books = this.getBooks();
+    const bIdx = books.findIndex((b) => b.id === target.bookId);
+    if (bIdx !== -1) {
+      books[bIdx].availableCopies += 1;
+      books[bIdx].issuedCopies = Math.max(0, books[bIdx].issuedCopies - 1);
+      books[bIdx].status = 'Available';
+      localStorage.setItem(STORAGE_KEYS.LIBRARY_BOOKS, JSON.stringify(books));
+    }
+
+    return { success: true, circulation: target };
+  },
+
+  getLibraryStats(): LibraryStatsInfo {
+    const books = this.getBooks();
+    const totalTitles = books.length;
+    const totalInventoryCopies = books.reduce((acc, b) => acc + b.totalCopies, 0);
+    const availableCopies = books.reduce((acc, b) => acc + b.availableCopies, 0);
+    const circs = this.getCirculations();
+    const currentlyIssued = circs.filter((c) => c.status === 'Issued' || c.status === 'Overdue').length;
+    const today = new Date().toISOString().split('T')[0];
+    const overdueCount = circs.filter((c) => (c.status === 'Issued' || c.status === 'Overdue') && c.dueDate < today).length;
+    const members = this.getLibraryMembers();
+    const activeMembers = members.filter((m) => m.status === 'Active').length;
+    const totalFineCollected = circs
+      .filter((c) => c.finePaid && c.fineAmount > 0)
+      .reduce((acc, c) => acc + c.fineAmount, 0);
+
+    return {
+      totalTitles,
+      totalInventoryCopies,
+      availableCopies,
+      currentlyIssued,
+      overdueCount,
+      activeMembers,
+      totalFineCollected,
+    };
+  },
+
+  // --- Phase 11: Transport & Fleet Management ---
+  getVehicles(status?: string): VehicleInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.TRANSPORT_VEHICLES);
+    let list: VehicleInfo[] = raw ? JSON.parse(raw) : DEFAULT_VEHICLES;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.TRANSPORT_VEHICLES, JSON.stringify(DEFAULT_VEHICLES));
+    }
+    if (status) {
+      list = list.filter((v) => v.status === status);
+    }
+    return list;
+  },
+
+  saveVehicle(vehicleData: Partial<VehicleInfo>): VehicleInfo {
+    const vehicles = this.getVehicles();
+    if (vehicleData.id) {
+      const idx = vehicles.findIndex((v) => v.id === vehicleData.id);
+      if (idx !== -1) {
+        vehicles[idx] = { ...vehicles[idx], ...vehicleData } as VehicleInfo;
+        localStorage.setItem(STORAGE_KEYS.TRANSPORT_VEHICLES, JSON.stringify(vehicles));
+        return vehicles[idx];
+      }
+    }
+    const newVehicle: VehicleInfo = {
+      id: vehicles.length > 0 ? Math.max(...vehicles.map((v) => v.id)) + 1 : 1,
+      vehicleNumber: vehicleData.vehicleNumber || `DHK-METRO-${String(vehicles.length + 1001)}`,
+      vehicleModel: vehicleData.vehicleModel || 'Standard School Bus',
+      vehicleType: vehicleData.vehicleType || 'Bus',
+      seatingCapacity: vehicleData.seatingCapacity || 40,
+      driverName: vehicleData.driverName || 'Designated Driver',
+      driverPhone: vehicleData.driverPhone || '+880 1700-000000',
+      driverLicense: vehicleData.driverLicense,
+      helperName: vehicleData.helperName,
+      helperPhone: vehicleData.helperPhone,
+      insuranceExpiry: vehicleData.insuranceExpiry,
+      fitnessExpiry: vehicleData.fitnessExpiry,
+      status: vehicleData.status || 'Active',
+    };
+    vehicles.push(newVehicle);
+    localStorage.setItem(STORAGE_KEYS.TRANSPORT_VEHICLES, JSON.stringify(vehicles));
+    return newVehicle;
+  },
+
+  deleteVehicle(id: number): boolean {
+    const vehicles = this.getVehicles();
+    const filtered = vehicles.filter((v) => v.id !== id);
+    if (filtered.length === vehicles.length) return false;
+    localStorage.setItem(STORAGE_KEYS.TRANSPORT_VEHICLES, JSON.stringify(filtered));
+    return true;
+  },
+
+  getRoutes(status?: string): TransportRouteInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.TRANSPORT_ROUTES);
+    let routes: TransportRouteInfo[] = raw ? JSON.parse(raw) : DEFAULT_ROUTES;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.TRANSPORT_ROUTES, JSON.stringify(DEFAULT_ROUTES));
+    }
+    if (status) {
+      routes = routes.filter((r) => r.status === status);
+    }
+    return routes;
+  },
+
+  getRouteById(id: number): TransportRouteInfo | undefined {
+    return this.getRoutes().find((r) => r.id === id);
+  },
+
+  saveRoute(routeData: Partial<TransportRouteInfo>): TransportRouteInfo {
+    const routes = this.getRoutes();
+    const vehicles = this.getVehicles();
+    const v = vehicles.find((veh) => veh.id === routeData.vehicleId);
+    const vNumber = v ? v.vehicleNumber : routeData.vehicleNumber;
+
+    if (routeData.id) {
+      const idx = routes.findIndex((r) => r.id === routeData.id);
+      if (idx !== -1) {
+        routes[idx] = {
+          ...routes[idx],
+          ...routeData,
+          vehicleNumber: vNumber,
+        } as TransportRouteInfo;
+        localStorage.setItem(STORAGE_KEYS.TRANSPORT_ROUTES, JSON.stringify(routes));
+        return routes[idx];
+      }
+    }
+
+    const newRoute: TransportRouteInfo = {
+      id: routes.length > 0 ? Math.max(...routes.map((r) => r.id)) + 1 : 1,
+      routeCode: routeData.routeCode || `RT-${String(routes.length + 1).padStart(2, '0')}`,
+      routeName: routeData.routeName || 'New Route',
+      startPoint: routeData.startPoint || 'Origin Point',
+      endPoint: routeData.endPoint || 'School Main Campus',
+      distanceKm: routeData.distanceKm || 10.0,
+      monthlyFee: routeData.monthlyFee || 2500.0,
+      vehicleId: routeData.vehicleId,
+      vehicleNumber: vNumber,
+      pickupTime: routeData.pickupTime || '06:45 AM',
+      dropTime: routeData.dropTime || '02:30 PM',
+      stops: routeData.stops || [],
+      status: routeData.status || 'Active',
+    };
+    routes.push(newRoute);
+    localStorage.setItem(STORAGE_KEYS.TRANSPORT_ROUTES, JSON.stringify(routes));
+    return newRoute;
+  },
+
+  deleteRoute(id: number): boolean {
+    const routes = this.getRoutes();
+    const filtered = routes.filter((r) => r.id !== id);
+    if (filtered.length === routes.length) return false;
+    localStorage.setItem(STORAGE_KEYS.TRANSPORT_ROUTES, JSON.stringify(filtered));
+    return true;
+  },
+
+  getTransportPassengers(routeId?: number, status?: string): TransportPassengerInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.TRANSPORT_PASSENGERS);
+    let passengers: TransportPassengerInfo[] = raw ? JSON.parse(raw) : DEFAULT_PASSENGERS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.TRANSPORT_PASSENGERS, JSON.stringify(DEFAULT_PASSENGERS));
+    }
+    if (routeId) {
+      passengers = passengers.filter((p) => p.routeId === routeId);
+    }
+    if (status) {
+      passengers = passengers.filter((p) => p.status === status);
+    }
+    return passengers;
+  },
+
+  allocatePassenger(data: {
+    passengerType: 'Student' | 'Teacher' | 'Staff';
+    studentId?: number;
+    teacherId?: number;
+    patronName?: string;
+    rollOrDesignation?: string;
+    phone?: string;
+    emergencyContact?: string;
+    routeId: number;
+    stopId?: number;
+    seatNumber?: string;
+    allocationDate: string;
+    monthlyFare?: number;
+    remarks?: string;
+  }): { success: boolean; message?: string; passenger?: TransportPassengerInfo } {
+    const route = this.getRouteById(data.routeId);
+    if (!route) return { success: false, message: 'Route not found.' };
+
+    const passengers = this.getTransportPassengers();
+    const activeRoutePassengers = passengers.filter((p) => p.routeId === data.routeId && p.status === 'Active');
+
+    // Check vehicle capacity
+    if (route.vehicleId) {
+      const v = this.getVehicles().find((veh) => veh.id === route.vehicleId);
+      if (v && activeRoutePassengers.length >= v.seatingCapacity) {
+        return { success: false, message: `Bus '${v.vehicleNumber}' is fully booked (${activeRoutePassengers.length}/${v.seatingCapacity} seats).` };
+      }
+    }
+
+    // Check duplicate active allocation
+    if (data.studentId) {
+      const existing = passengers.find((p) => p.studentId === data.studentId && p.status === 'Active');
+      if (existing) {
+        return { success: false, message: `Student is already allocated to active Route '${existing.routeName}'.` };
+      }
+    } else if (data.teacherId) {
+      const existing = passengers.find((p) => p.teacherId === data.teacherId && p.status === 'Active');
+      if (existing) {
+        return { success: false, message: `Teacher is already allocated to active Route '${existing.routeName}'.` };
+      }
+    }
+
+    const stop = route.stops.find((s) => s.id === data.stopId);
+    const stopTitle = stop ? stop.stopName : (route.stops[0]?.stopName || 'Campus Origin');
+
+    const newPassenger: TransportPassengerInfo = {
+      id: passengers.length > 0 ? Math.max(...passengers.map((p) => p.id)) + 1 : 1,
+      passengerType: data.passengerType,
+      studentId: data.studentId,
+      teacherId: data.teacherId,
+      patronName: data.patronName || 'New Commuter',
+      rollOrDesignation: data.rollOrDesignation,
+      phone: data.phone,
+      emergencyContact: data.emergencyContact || data.phone,
+      routeId: data.routeId,
+      routeCode: route.routeCode,
+      routeName: route.routeName,
+      vehicleId: route.vehicleId,
+      vehicleNumber: route.vehicleNumber,
+      stopId: data.stopId,
+      stopName: stopTitle,
+      seatNumber: data.seatNumber || `Seat ${String(activeRoutePassengers.length + 1).padStart(2, '0')}`,
+      allocationDate: data.allocationDate,
+      monthlyFare: data.monthlyFare !== undefined ? data.monthlyFare : route.monthlyFee,
+      status: 'Active',
+      remarks: data.remarks,
+    };
+
+    passengers.unshift(newPassenger);
+    localStorage.setItem(STORAGE_KEYS.TRANSPORT_PASSENGERS, JSON.stringify(passengers));
+    return { success: true, passenger: newPassenger };
+  },
+
+  cancelPassengerAllocation(passengerId: number, reason?: string): boolean {
+    const passengers = this.getTransportPassengers();
+    const idx = passengers.findIndex((p) => p.id === passengerId);
+    if (idx === -1) return false;
+    passengers[idx].status = 'Cancelled';
+    if (reason) {
+      passengers[idx].remarks = `${passengers[idx].remarks || ''} [Cancelled: ${reason}]`.trim();
+    }
+    localStorage.setItem(STORAGE_KEYS.TRANSPORT_PASSENGERS, JSON.stringify(passengers));
+    return true;
+  },
+
+  getTransportStats(): TransportStatsInfo {
+    const vehicles = this.getVehicles();
+    const routes = this.getRoutes();
+    const passengers = this.getTransportPassengers();
+
+    const totalVehicles = vehicles.length;
+    const activeVehicles = vehicles.filter((v) => v.status === 'Active').length;
+    const totalRoutes = routes.filter((r) => r.status === 'Active').length;
+    const totalCapacity = vehicles
+      .filter((v) => v.status === 'Active')
+      .reduce((acc, v) => acc + v.seatingCapacity, 0);
+    const allocatedPassengers = passengers.filter((p) => p.status === 'Active').length;
+    const availableSeats = Math.max(0, totalCapacity - allocatedPassengers);
+    const monthlyRevenue = passengers
+      .filter((p) => p.status === 'Active')
+      .reduce((acc, p) => acc + p.monthlyFare, 0);
+
+    return {
+      totalVehicles,
+      activeVehicles,
+      totalRoutes,
+      totalCapacity,
+      allocatedPassengers,
+      availableSeats,
+      monthlyRevenue,
+    };
+  },
+
+  // ==================== PHASE 12: HOSTEL & DORMITORY ====================
+  getHostelBlocks(): HostelBlockInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.HOSTEL_BLOCKS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.HOSTEL_BLOCKS, JSON.stringify(DEFAULT_HOSTEL_BLOCKS));
+      return DEFAULT_HOSTEL_BLOCKS;
+    }
+    return JSON.parse(raw);
+  },
+
+  saveHostelBlock(block: Partial<HostelBlockInfo> & { blockName: string }): HostelBlockInfo {
+    const blocks = this.getHostelBlocks();
+    if (block.id) {
+      const idx = blocks.findIndex((b) => b.id === block.id);
+      if (idx !== -1) {
+        blocks[idx] = { ...blocks[idx], ...block } as HostelBlockInfo;
+        localStorage.setItem(STORAGE_KEYS.HOSTEL_BLOCKS, JSON.stringify(blocks));
+        return blocks[idx];
+      }
+    }
+    const newId = blocks.length > 0 ? Math.max(...blocks.map((b) => b.id)) + 1 : 1;
+    const newBlock: HostelBlockInfo = {
+      id: newId,
+      blockName: block.blockName,
+      genderType: block.genderType || 'Boys',
+      wardenName: block.wardenName || 'Staff Warden',
+      wardenPhone: block.wardenPhone || '+880 1700-000000',
+      address: block.address || 'Campus Residential Quadrangle',
+      totalFloors: block.totalFloors || 3,
+      status: block.status || 'Active',
+    };
+    blocks.push(newBlock);
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_BLOCKS, JSON.stringify(blocks));
+    return newBlock;
+  },
+
+  deleteHostelBlock(id: number): boolean {
+    let blocks = this.getHostelBlocks();
+    blocks = blocks.filter((b) => b.id !== id);
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_BLOCKS, JSON.stringify(blocks));
+    return true;
+  },
+
+  getHostelRooms(blockId?: number): HostelRoomInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.HOSTEL_ROOMS);
+    let rooms: HostelRoomInfo[] = raw ? JSON.parse(raw) : DEFAULT_HOSTEL_ROOMS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.HOSTEL_ROOMS, JSON.stringify(DEFAULT_HOSTEL_ROOMS));
+    }
+    const allocations = this.getHostelAllocations();
+    const blocks = this.getHostelBlocks();
+
+    // Dynamically calculate occupied count and status
+    rooms = rooms.map((r) => {
+      const occupied = allocations.filter((a) => a.roomId === r.id && a.status === 'Active').length;
+      const blk = blocks.find((b) => b.id === r.blockId);
+      const isFull = occupied >= r.capacity;
+      return {
+        ...r,
+        blockName: blk?.blockName || r.blockName,
+        occupiedCount: occupied,
+        status: (isFull ? 'Full' : r.status === 'Full' ? 'Available' : r.status) as HostelRoomInfo['status'],
+      };
+    });
+
+    if (blockId) {
+      rooms = rooms.filter((r) => r.blockId === blockId);
+    }
+    return rooms;
+  },
+
+  saveHostelRoom(room: Partial<HostelRoomInfo> & { blockId: number; roomNumber: string }): HostelRoomInfo {
+    const rooms = this.getHostelRooms();
+    const blocks = this.getHostelBlocks();
+    const block = blocks.find((b) => b.id === room.blockId);
+
+    if (room.id) {
+      const idx = rooms.findIndex((r) => r.id === room.id);
+      if (idx !== -1) {
+        rooms[idx] = {
+          ...rooms[idx],
+          ...room,
+          blockName: block?.blockName || rooms[idx].blockName,
+        } as HostelRoomInfo;
+        localStorage.setItem(STORAGE_KEYS.HOSTEL_ROOMS, JSON.stringify(rooms));
+        return rooms[idx];
+      }
+    }
+    const newId = rooms.length > 0 ? Math.max(...rooms.map((r) => r.id)) + 1 : 1;
+    const newRoom: HostelRoomInfo = {
+      id: newId,
+      blockId: room.blockId,
+      blockName: block?.blockName || 'Residential Block',
+      roomNumber: room.roomNumber,
+      floorNumber: room.floorNumber || 1,
+      roomType: room.roomType || 'Double',
+      capacity: room.capacity || 2,
+      monthlyFee: room.monthlyFee || 3000.0,
+      amenities: room.amenities || 'Attached Bath, Study Table, Wi-Fi',
+      status: room.status || 'Available',
+    };
+    rooms.push(newRoom);
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_ROOMS, JSON.stringify(rooms));
+    return newRoom;
+  },
+
+  deleteHostelRoom(id: number): boolean {
+    let rooms = this.getHostelRooms();
+    rooms = rooms.filter((r) => r.id !== id);
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_ROOMS, JSON.stringify(rooms));
+    return true;
+  },
+
+  getHostelAllocations(roomId?: number): HostelAllocationInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.HOSTEL_ALLOCATIONS);
+    let list: HostelAllocationInfo[] = raw ? JSON.parse(raw) : DEFAULT_HOSTEL_ALLOCATIONS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.HOSTEL_ALLOCATIONS, JSON.stringify(DEFAULT_HOSTEL_ALLOCATIONS));
+    }
+    if (roomId) {
+      list = list.filter((a) => a.roomId === roomId);
+    }
+    return list;
+  },
+
+  allocateHostelBed(data: {
+    roomId: number;
+    studentId: number;
+    bedNumber: string;
+    admissionDate?: string;
+    guardianContact?: string;
+    emergencyPhone?: string;
+    remarks?: string;
+  }): { success: boolean; message?: string; allocation?: HostelAllocationInfo } {
+    const allocations = this.getHostelAllocations();
+    const rooms = this.getHostelRooms();
+    const room = rooms.find((r) => r.id === data.roomId);
+    if (!room) {
+      return { success: false, message: 'Hostel room not found.' };
+    }
+
+    // 1. Capacity check
+    const activeInRoom = allocations.filter((a) => a.roomId === data.roomId && a.status === 'Active');
+    if (activeInRoom.length >= room.capacity) {
+      return {
+        success: false,
+        message: `Room ${room.roomNumber} is at maximum capacity (${room.capacity} beds occupied).`,
+      };
+    }
+
+    // 2. Duplicate active bed check
+    const existing = allocations.find((a) => a.studentId === data.studentId && a.status === 'Active');
+    if (existing) {
+      return {
+        success: false,
+        message: `Student already holds an active bed in Room ${existing.roomNumber} (${existing.blockName}).`,
+      };
+    }
+
+    // 3. Gender check
+    const students = this.getStudents();
+    const student = students.find((s) => s.id === data.studentId);
+    const blocks = this.getHostelBlocks();
+    const block = blocks.find((b) => b.id === room.blockId);
+
+    if (student && block && block.genderType !== 'Co-ed') {
+      const sGender = (student.gender || '').toLowerCase();
+      if (block.genderType === 'Boys' && (sGender === 'female' || sGender === 'girl')) {
+        return { success: false, message: 'Gender mismatch: Female student cannot be assigned to Boys Hostel Block.' };
+      }
+      if (block.genderType === 'Girls' && (sGender === 'male' || sGender === 'boy')) {
+        return { success: false, message: 'Gender mismatch: Male student cannot be assigned to Girls Hostel Block.' };
+      }
+    }
+
+    const newId = allocations.length > 0 ? Math.max(...allocations.map((a) => a.id)) + 1 : 1;
+    const newAllocation: HostelAllocationInfo = {
+      id: newId,
+      roomId: room.id,
+      roomNumber: room.roomNumber,
+      blockId: room.blockId,
+      blockName: block?.blockName || room.blockName,
+      studentId: data.studentId,
+      studentRegNo: student?.studentId || `STU-${data.studentId}`,
+      studentName: student ? `${student.firstName} ${student.lastName}` : 'Resident Student',
+      studentGender: student?.gender,
+      bedNumber: data.bedNumber || `Bed-${activeInRoom.length + 1}`,
+      admissionDate: data.admissionDate || new Date().toISOString().split('T')[0],
+      guardianContact: data.guardianContact || student?.emergencyContact || '+880 1700-000000',
+      emergencyPhone: data.emergencyPhone || student?.emergencyContact || '+880 1700-000000',
+      remarks: data.remarks,
+      status: 'Active',
+    };
+
+    allocations.unshift(newAllocation);
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_ALLOCATIONS, JSON.stringify(allocations));
+    return { success: true, allocation: newAllocation };
+  },
+
+  vacateHostelBed(allocationId: number, remarks?: string): boolean {
+    const allocations = this.getHostelAllocations();
+    const idx = allocations.findIndex((a) => a.id === allocationId);
+    if (idx === -1) return false;
+
+    allocations[idx].status = 'Vacated';
+    allocations[idx].vacateDate = new Date().toISOString().split('T')[0];
+    if (remarks) {
+      allocations[idx].remarks = `${allocations[idx].remarks || ''} [Vacated: ${remarks}]`.trim();
+    }
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_ALLOCATIONS, JSON.stringify(allocations));
+    return true;
+  },
+
+  getHostelGatePasses(): HostelGatePassInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.HOSTEL_GATE_PASSES);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.HOSTEL_GATE_PASSES, JSON.stringify(DEFAULT_HOSTEL_GATE_PASSES));
+      return DEFAULT_HOSTEL_GATE_PASSES;
+    }
+    return JSON.parse(raw);
+  },
+
+  createHostelGatePass(data: {
+    allocationId: number;
+    purpose: string;
+    leaveDate: string;
+    expectedReturnDate: string;
+    remarks?: string;
+  }): { success: boolean; message?: string; gatePass?: HostelGatePassInfo } {
+    const passes = this.getHostelGatePasses();
+    const allocations = this.getHostelAllocations();
+    const alloc = allocations.find((a) => a.id === data.allocationId);
+    if (!alloc) {
+      return { success: false, message: 'Resident allocation record not found.' };
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const passNo = `GP-${todayStr}-${String(passes.length + 1).padStart(4, '0')}`;
+
+    const newPass: HostelGatePassInfo = {
+      id: passes.length > 0 ? Math.max(...passes.map((p) => p.id)) + 1 : 1,
+      passNumber: passNo,
+      allocationId: alloc.id,
+      studentName: alloc.studentName,
+      studentRegNo: alloc.studentRegNo,
+      roomNumber: alloc.roomNumber,
+      blockName: alloc.blockName,
+      purpose: data.purpose,
+      leaveDate: data.leaveDate,
+      expectedReturnDate: data.expectedReturnDate,
+      wardenApproval: 'Approved',
+      status: 'Out',
+      remarks: data.remarks,
+    };
+
+    passes.unshift(newPass);
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_GATE_PASSES, JSON.stringify(passes));
+    return { success: true, gatePass: newPass };
+  },
+
+  returnHostelGatePass(gatePassId: number): boolean {
+    const passes = this.getHostelGatePasses();
+    const idx = passes.findIndex((p) => p.id === gatePassId);
+    if (idx === -1) return false;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    passes[idx].actualReturnDate = todayStr;
+    if (todayStr > passes[idx].expectedReturnDate) {
+      passes[idx].status = 'Overstayed';
+    } else {
+      passes[idx].status = 'Returned';
+    }
+    localStorage.setItem(STORAGE_KEYS.HOSTEL_GATE_PASSES, JSON.stringify(passes));
+    return true;
+  },
+
+  getHostelStats(): HostelStatsInfo {
+    const blocks = this.getHostelBlocks();
+    const rooms = this.getHostelRooms();
+    const allocations = this.getHostelAllocations();
+    const gatePasses = this.getHostelGatePasses();
+
+    const totalBlocks = blocks.length;
+    const totalRooms = rooms.length;
+    const totalCapacity = rooms.reduce((acc, r) => acc + r.capacity, 0);
+    const activeAllocations = allocations.filter((a) => a.status === 'Active');
+    const occupiedBeds = activeAllocations.length;
+    const availableBeds = Math.max(0, totalCapacity - occupiedBeds);
+    const occupancyRate = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
+    const boardersOut = gatePasses.filter((g) => g.status === 'Out' || g.status === 'Overstayed').length;
+    const presentInHostel = Math.max(0, occupiedBeds - boardersOut);
+
+    return {
+      totalBlocks,
+      totalRooms,
+      totalCapacity,
+      occupiedBeds,
+      availableBeds,
+      occupancyRate,
+      boardersOut,
+      presentInHostel,
+    };
+  },
+
+  // ==================== PHASE 13: NOTICES & EVENTS ====================
+  getNotices(audience?: string, category?: string, status?: string): SchoolNoticeInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.NOTICES);
+    let list: SchoolNoticeInfo[] = raw ? JSON.parse(raw) : DEFAULT_NOTICES;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(DEFAULT_NOTICES));
+    }
+    if (audience && audience !== 'All') {
+      list = list.filter((n) => n.targetAudience === audience || n.targetAudience === 'All');
+    }
+    if (category && category !== 'All') {
+      list = list.filter((n) => n.category === category);
+    }
+    if (status) {
+      list = list.filter((n) => n.status === status);
+    }
+
+    // Sort: Pinned first, then publish date descending
+    return list.sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+      return new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime();
+    });
+  },
+
+  saveNotice(notice: Partial<SchoolNoticeInfo> & { title: string; content: string }): SchoolNoticeInfo {
+    const list = this.getNotices();
+    if (notice.id) {
+      const idx = list.findIndex((n) => n.id === notice.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...notice } as SchoolNoticeInfo;
+        localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(list));
+        return list[idx];
+      }
+    }
+
+    const year = new Date().getFullYear();
+    const count = list.length + 1;
+    const refNo = `CIR-${year}/${String(count).padStart(3, '0')}`;
+    const newId = list.length > 0 ? Math.max(...list.map((n) => n.id)) + 1 : 1;
+
+    const newNotice: SchoolNoticeInfo = {
+      id: newId,
+      referenceNo: notice.referenceNo || refNo,
+      title: notice.title,
+      category: notice.category || 'Academic',
+      targetAudience: notice.targetAudience || 'All',
+      targetClassId: notice.targetClassId,
+      priority: notice.priority || 'Normal',
+      isPinned: notice.isPinned ?? (notice.priority === 'Urgent'),
+      publishDate: notice.publishDate || new Date().toISOString().split('T')[0],
+      expiryDate: notice.expiryDate,
+      content: notice.content,
+      attachmentName: notice.attachmentName,
+      status: notice.status || 'Published',
+      createdBy: notice.createdBy || 'Principal Office',
+    };
+
+    list.unshift(newNotice);
+    localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(list));
+    return newNotice;
+  },
+
+  deleteNotice(id: number): boolean {
+    let list = this.getNotices();
+    list = list.filter((n) => n.id !== id);
+    localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(list));
+    return true;
+  },
+
+  getEvents(category?: string): SchoolEventInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.EVENTS);
+    let list: SchoolEventInfo[] = raw ? JSON.parse(raw) : DEFAULT_EVENTS;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(DEFAULT_EVENTS));
+    }
+    if (category && category !== 'All') {
+      list = list.filter((e) => e.eventCategory === category);
+    }
+    // Sort chronologically
+    return list.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  },
+
+  saveEvent(event: Partial<SchoolEventInfo> & { eventTitle: string; startDate: string; endDate: string }): SchoolEventInfo {
+    const list = this.getEvents();
+    if (event.id) {
+      const idx = list.findIndex((e) => e.id === event.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...event } as SchoolEventInfo;
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(list));
+        return list[idx];
+      }
+    }
+
+    const newId = list.length > 0 ? Math.max(...list.map((e) => e.id)) + 1 : 1;
+    let color = event.colorCode;
+    if (!color) {
+      if (event.isHoliday || event.eventCategory === 'Holiday') color = '#DC2626';
+      else if (event.eventCategory === 'Exam') color = '#D97706';
+      else if (event.eventCategory === 'Sports') color = '#2563EB';
+      else if (event.eventCategory === 'Cultural') color = '#7C3AED';
+      else color = '#059669';
+    }
+
+    const newEvent: SchoolEventInfo = {
+      id: newId,
+      eventTitle: event.eventTitle,
+      eventCategory: event.eventCategory || 'Academic',
+      startDate: event.startDate,
+      endDate: event.endDate,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      venue: event.venue || 'Campus Main Auditorium',
+      targetAudience: event.targetAudience || 'All',
+      isHoliday: event.isHoliday ?? (event.eventCategory === 'Holiday'),
+      colorCode: color,
+      description: event.description,
+      organizer: event.organizer || 'School Administration',
+    };
+
+    list.push(newEvent);
+    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(list));
+    return newEvent;
+  },
+
+  deleteEvent(id: number): boolean {
+    let list = this.getEvents();
+    list = list.filter((e) => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(list));
+    return true;
+  },
+
+  isDateHoliday(dateStr: string): boolean {
+    const events = this.getEvents();
+    const target = new Date(dateStr).getTime();
+    return events.some((e) => {
+      if (!e.isHoliday) return false;
+      const s = new Date(e.startDate).getTime();
+      const end = new Date(e.endDate).getTime();
+      return target >= s && target <= end;
+    });
+  },
+
+  getNoticeStats(): NoticeStatsInfo {
+    const notices = this.getNotices();
+    const events = this.getEvents();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const totalNotices = notices.length;
+    const publishedNotices = notices.filter((n) => n.status === 'Published').length;
+    const urgentAlerts = notices.filter((n) => n.priority === 'Urgent' && n.status === 'Published').length;
+    const upcomingEvents = events.filter((e) => e.endDate >= todayStr).length;
+    const totalHolidays = events.filter((e) => e.isHoliday).length;
+
+    return {
+      totalNotices,
+      publishedNotices,
+      urgentAlerts,
+      upcomingEvents,
+      totalHolidays,
+    };
+  },
 };
 
 const DEFAULT_FEE_CATEGORIES: FeeCategoryInfo[] = [
@@ -3803,7 +4866,927 @@ const DEFAULT_TIMETABLE_ENTRIES: TimetableEntryInfo[] = [
   { id: 28, academicYearId: 1, classId: 5, className: 'Class 10', sectionId: 1, sectionName: 'Padma', dayOfWeek: 'Thursday', periodSlotId: 7, periodName: '5th Period', periodTime: '12:30 PM - 01:15 PM', subjectId: 6, subjectName: 'Information & Communication Tech', subjectCode: 'ICT-154', teacherId: 6, teacherName: 'Anisur Rahman', roomNumber: 'Computer Lab 1' },
 ];
 
+// ==========================================
+// Phase 10: Library Defaults
+// ==========================================
+const DEFAULT_BOOK_CATEGORIES: BookCategoryInfo[] = [
+  { id: 1, name: 'Computer Science & ICT', code: 'CS-ICT', description: 'Programming, Algorithms, AI, Hardware and Networking' },
+  { id: 2, name: 'Mathematics & Physics', code: 'MATH-PHY', description: 'Calculus, Linear Algebra, Mechanics, Electromagnetism' },
+  { id: 3, name: 'General Science & Biology', code: 'SCI-BIO', description: 'Chemistry, Genetics, Ecology and General Science' },
+  { id: 4, name: 'English Literature & Grammar', code: 'ENG-LIT', description: 'Classic Novels, Poetry, English Grammar and Composition' },
+  { id: 5, name: 'Bangla Literature & Language', code: 'BAN-LIT', description: 'Nobel laureate works, prose, poetry and linguistics' },
+  { id: 6, name: 'World History & Social Sciences', code: 'HIST-SOC', description: 'Ancient civilization, Modern history, Economics & Geography' },
+  { id: 7, name: 'Reference & Encyclopedias', code: 'REF-ENC', description: 'Dictionaries, Atlases, Yearbooks and Research Handbooks' },
+];
+
+const DEFAULT_BOOKS: BookInfo[] = [
+  {
+    id: 1,
+    accessionNo: 'ACC-2026-0001',
+    title: 'Introduction to Algorithms (4th Edition)',
+    author: 'Thomas H. Cormen, Charles E. Leiserson',
+    publisher: 'MIT Press',
+    isbn: '978-0262046305',
+    edition: '4th Edition',
+    publicationYear: 2022,
+    categoryId: 1,
+    categoryName: 'Computer Science & ICT',
+    rackNumber: 'Rack 01',
+    shelfNumber: 'Shelf A',
+    totalCopies: 5,
+    availableCopies: 4,
+    issuedCopies: 1,
+    price: 85.0,
+    status: 'Available',
+  },
+  {
+    id: 2,
+    accessionNo: 'ACC-2026-0002',
+    title: 'Clean Code: A Handbook of Agile Software Craftsmanship',
+    author: 'Robert C. Martin',
+    publisher: 'Prentice Hall',
+    isbn: '978-0132350884',
+    edition: '1st Edition',
+    publicationYear: 2008,
+    categoryId: 1,
+    categoryName: 'Computer Science & ICT',
+    rackNumber: 'Rack 01',
+    shelfNumber: 'Shelf B',
+    totalCopies: 4,
+    availableCopies: 3,
+    issuedCopies: 1,
+    price: 42.5,
+    status: 'Available',
+  },
+  {
+    id: 3,
+    accessionNo: 'ACC-2026-0003',
+    title: 'University Physics with Modern Physics',
+    author: 'Hugh D. Young, Roger A. Freedman',
+    publisher: 'Pearson',
+    isbn: '978-0135159552',
+    edition: '15th Edition',
+    publicationYear: 2019,
+    categoryId: 2,
+    categoryName: 'Mathematics & Physics',
+    rackNumber: 'Rack 02',
+    shelfNumber: 'Shelf A',
+    totalCopies: 6,
+    availableCopies: 6,
+    issuedCopies: 0,
+    price: 95.0,
+    status: 'Available',
+  },
+  {
+    id: 4,
+    accessionNo: 'ACC-2026-0004',
+    title: 'Calculus: Early Transcendentals',
+    author: 'James Stewart',
+    publisher: 'Cengage Learning',
+    isbn: '978-1305272378',
+    edition: '8th Edition',
+    publicationYear: 2015,
+    categoryId: 2,
+    categoryName: 'Mathematics & Physics',
+    rackNumber: 'Rack 02',
+    shelfNumber: 'Shelf C',
+    totalCopies: 8,
+    availableCopies: 8,
+    issuedCopies: 0,
+    price: 78.0,
+    status: 'Available',
+  },
+  {
+    id: 5,
+    accessionNo: 'ACC-2026-0005',
+    title: 'Campbell Biology (12th Edition)',
+    author: 'Lisa A. Urry, Michael L. Cain',
+    publisher: 'Pearson',
+    isbn: '978-0135188743',
+    edition: '12th Edition',
+    publicationYear: 2020,
+    categoryId: 3,
+    categoryName: 'General Science & Biology',
+    rackNumber: 'Rack 03',
+    shelfNumber: 'Shelf A',
+    totalCopies: 5,
+    availableCopies: 5,
+    issuedCopies: 0,
+    price: 110.0,
+    status: 'Available',
+  },
+  {
+    id: 6,
+    accessionNo: 'ACC-2026-0006',
+    title: 'To Kill a Mockingbird',
+    author: 'Harper Lee',
+    publisher: 'J. B. Lippincott & Co.',
+    isbn: '978-0060935467',
+    edition: '50th Anniversary Ed.',
+    publicationYear: 1960,
+    categoryId: 4,
+    categoryName: 'English Literature & Grammar',
+    rackNumber: 'Rack 04',
+    shelfNumber: 'Shelf A',
+    totalCopies: 7,
+    availableCopies: 7,
+    issuedCopies: 0,
+    price: 18.0,
+    status: 'Available',
+  },
+  {
+    id: 7,
+    accessionNo: 'ACC-2026-0007',
+    title: '1984 & Animal Farm Special Collection',
+    author: 'George Orwell',
+    publisher: 'Secker & Warburg',
+    isbn: '978-0451524935',
+    edition: 'Classic Edition',
+    publicationYear: 1949,
+    categoryId: 4,
+    categoryName: 'English Literature & Grammar',
+    rackNumber: 'Rack 04',
+    shelfNumber: 'Shelf B',
+    totalCopies: 6,
+    availableCopies: 6,
+    issuedCopies: 0,
+    price: 22.0,
+    status: 'Available',
+  },
+  {
+    id: 8,
+    accessionNo: 'ACC-2026-0008',
+    title: 'Shesher Kobita (The Last Poem)',
+    author: 'Rabindranath Tagore',
+    publisher: 'Visva-Bharati',
+    isbn: '978-8172153578',
+    edition: 'Centenary Edition',
+    publicationYear: 1929,
+    categoryId: 5,
+    categoryName: 'Bangla Literature & Language',
+    rackNumber: 'Rack 05',
+    shelfNumber: 'Shelf A',
+    totalCopies: 10,
+    availableCopies: 10,
+    issuedCopies: 0,
+    price: 12.0,
+    status: 'Available',
+  },
+  {
+    id: 9,
+    accessionNo: 'ACC-2026-0009',
+    title: 'A Brief History of Humankind (Sapiens)',
+    author: 'Yuval Noah Harari',
+    publisher: 'Harper',
+    isbn: '978-0062316097',
+    edition: '1st Edition',
+    publicationYear: 2015,
+    categoryId: 6,
+    categoryName: 'World History & Social Sciences',
+    rackNumber: 'Rack 06',
+    shelfNumber: 'Shelf A',
+    totalCopies: 6,
+    availableCopies: 6,
+    issuedCopies: 0,
+    price: 26.0,
+    status: 'Available',
+  },
+  {
+    id: 10,
+    accessionNo: 'ACC-2026-0010',
+    title: "Oxford Advanced Learner's Dictionary (10th Edition)",
+    author: 'A. S. Hornby',
+    publisher: 'Oxford University Press',
+    isbn: '978-0194798488',
+    edition: '10th Edition',
+    publicationYear: 2020,
+    categoryId: 7,
+    categoryName: 'Reference & Encyclopedias',
+    rackNumber: 'Rack 07',
+    shelfNumber: 'Shelf A',
+    totalCopies: 4,
+    availableCopies: 4,
+    issuedCopies: 0,
+    price: 55.0,
+    status: 'Available',
+  },
+];
+
+const DEFAULT_LIBRARY_MEMBERS: LibraryMemberInfo[] = [
+  {
+    id: 1,
+    memberId: 'LIB-STD-1001',
+    memberType: 'Student',
+    studentId: 1,
+    patronName: 'Samiul Islam',
+    rollOrDesignation: 'Class 10 (Roll 1)',
+    cardIssueDate: '2026-01-10',
+    maxAllowedBooks: 3,
+    activeLoanCount: 1,
+    status: 'Active',
+  },
+  {
+    id: 2,
+    memberId: 'LIB-STD-1002',
+    memberType: 'Student',
+    studentId: 2,
+    patronName: 'Sadia Jahan',
+    rollOrDesignation: 'Class 10 (Roll 2)',
+    cardIssueDate: '2026-01-10',
+    maxAllowedBooks: 3,
+    activeLoanCount: 1,
+    status: 'Active',
+  },
+  {
+    id: 3,
+    memberId: 'LIB-STD-1003',
+    memberType: 'Student',
+    studentId: 3,
+    patronName: 'Tanvir Hasan',
+    rollOrDesignation: 'Class 10 (Roll 3)',
+    cardIssueDate: '2026-01-12',
+    maxAllowedBooks: 3,
+    activeLoanCount: 0,
+    status: 'Active',
+  },
+  {
+    id: 4,
+    memberId: 'LIB-FAC-2001',
+    memberType: 'Teacher',
+    teacherId: 1,
+    patronName: 'Dr. Mohammad Rafiqul Islam',
+    rollOrDesignation: 'Principal & Senior Faculty',
+    cardIssueDate: '2025-08-01',
+    maxAllowedBooks: 5,
+    activeLoanCount: 0,
+    status: 'Active',
+  },
+  {
+    id: 5,
+    memberId: 'LIB-FAC-2002',
+    memberType: 'Teacher',
+    teacherId: 2,
+    patronName: 'Nasreen Sultana',
+    rollOrDesignation: 'Assistant Professor, English',
+    cardIssueDate: '2025-08-01',
+    maxAllowedBooks: 5,
+    activeLoanCount: 0,
+    status: 'Active',
+  },
+];
+
+const DEFAULT_BOOK_CIRCULATIONS: BookCirculationRecord[] = [
+  {
+    id: 1,
+    bookId: 1,
+    accessionNo: 'ACC-2026-0001',
+    bookTitle: 'Introduction to Algorithms (4th Edition)',
+    memberId: 1,
+    memberCode: 'LIB-STD-1001',
+    patronName: 'Samiul Islam',
+    memberType: 'Student',
+    issueDate: '2026-02-01',
+    dueDate: '2026-02-15',
+    status: 'Issued',
+    fineAmount: 0,
+    finePaid: false,
+    issuedBy: 'Chief Librarian',
+    remarks: 'Active loan for programming contest preparation',
+  },
+  {
+    id: 2,
+    bookId: 2,
+    accessionNo: 'ACC-2026-0002',
+    bookTitle: 'Clean Code: A Handbook of Agile Software Craftsmanship',
+    memberId: 2,
+    memberCode: 'LIB-STD-1002',
+    patronName: 'Sadia Jahan',
+    memberType: 'Student',
+    issueDate: '2026-01-10',
+    dueDate: '2026-01-24',
+    status: 'Overdue',
+    fineAmount: 35.0,
+    finePaid: false,
+    issuedBy: 'Assistant Librarian',
+    remarks: '7 days past deadline - overdue notice issued',
+  },
+  {
+    id: 3,
+    bookId: 3,
+    accessionNo: 'ACC-2026-0003',
+    bookTitle: 'University Physics with Modern Physics',
+    memberId: 1,
+    memberCode: 'LIB-STD-1001',
+    patronName: 'Samiul Islam',
+    memberType: 'Student',
+    issueDate: '2026-01-05',
+    dueDate: '2026-01-19',
+    returnDate: '2026-01-18',
+    status: 'Returned',
+    fineAmount: 0,
+    finePaid: true,
+    issuedBy: 'Chief Librarian',
+    remarks: 'Returned in good condition on time',
+  },
+];
+
+// ==========================================
+// Phase 11: Transport Defaults
+// ==========================================
+const DEFAULT_VEHICLES: VehicleInfo[] = [
+  {
+    id: 1,
+    vehicleNumber: 'DHK-METRO-CHA-11-2041',
+    vehicleModel: 'Tata Marcopolo CityBus 42-S',
+    vehicleType: 'Bus',
+    seatingCapacity: 42,
+    driverName: 'Rafiqul Islam',
+    driverPhone: '+880 1711-234567',
+    driverLicense: 'DL-DHK-88412',
+    helperName: 'Billal Hossain',
+    helperPhone: '+880 1812-334455',
+    insuranceExpiry: '2026-12-31',
+    fitnessExpiry: '2026-10-15',
+    status: 'Active',
+  },
+  {
+    id: 2,
+    vehicleNumber: 'DHK-METRO-CHA-11-2042',
+    vehicleModel: 'Ashok Leyland Falcon 38-S',
+    vehicleType: 'Bus',
+    seatingCapacity: 38,
+    driverName: 'Abdul Malek',
+    driverPhone: '+880 1722-345678',
+    driverLicense: 'DL-DHK-99231',
+    helperName: 'Solaiman Miah',
+    helperPhone: '+880 1913-445566',
+    insuranceExpiry: '2026-11-30',
+    fitnessExpiry: '2026-09-20',
+    status: 'Active',
+  },
+  {
+    id: 3,
+    vehicleNumber: 'DHK-METRO-GA-14-3015',
+    vehicleModel: 'Toyota Coaster Deluxe 28-S',
+    vehicleType: 'Minibus',
+    seatingCapacity: 28,
+    driverName: 'Mizanur Rahman',
+    driverPhone: '+880 1733-456789',
+    driverLicense: 'DL-DHK-77124',
+    helperName: 'Jahangir Alam',
+    helperPhone: '+880 1814-556677',
+    insuranceExpiry: '2027-01-15',
+    fitnessExpiry: '2026-11-10',
+    status: 'Active',
+  },
+  {
+    id: 4,
+    vehicleNumber: 'DHK-METRO-CHA-11-2044',
+    vehicleModel: 'Hino Rainbow 32-S',
+    vehicleType: 'Bus',
+    seatingCapacity: 32,
+    driverName: 'Kabir Hossain',
+    driverPhone: '+880 1744-567890',
+    driverLicense: 'DL-DHK-66541',
+    helperName: 'Rokonuzzaman',
+    helperPhone: '+880 1915-667788',
+    insuranceExpiry: '2026-08-30',
+    fitnessExpiry: '2026-06-25',
+    status: 'Maintenance',
+  },
+];
+
+const DEFAULT_ROUTES: TransportRouteInfo[] = [
+  {
+    id: 1,
+    routeCode: 'RT-01',
+    routeName: 'Route 01: Uttara - Airport - Campus',
+    startPoint: 'Uttara Sector 14',
+    endPoint: 'School Main Campus',
+    distanceKm: 14.5,
+    monthlyFee: 2500.0,
+    vehicleId: 1,
+    vehicleNumber: 'DHK-METRO-CHA-11-2041',
+    pickupTime: '06:45 AM',
+    dropTime: '02:30 PM',
+    status: 'Active',
+    stops: [
+      { id: 1, routeId: 1, stopName: 'Uttara Sector 14 (Origin)', stopOrder: 1, pickupTime: '06:45 AM', dropTime: '02:30 PM', fare: 2500.0 },
+      { id: 2, routeId: 1, stopName: 'House Building / Azampur', stopOrder: 2, pickupTime: '07:00 AM', dropTime: '02:45 PM', fare: 2400.0 },
+      { id: 3, routeId: 1, stopName: 'Airport Intersection', stopOrder: 3, pickupTime: '07:15 AM', dropTime: '03:00 PM', fare: 2200.0 },
+      { id: 4, routeId: 1, stopName: 'Khilkhet Overbridge', stopOrder: 4, pickupTime: '07:30 AM', dropTime: '03:15 PM', fare: 2000.0 },
+      { id: 5, routeId: 1, stopName: 'School Campus Gate 1', stopOrder: 5, pickupTime: '07:45 AM', dropTime: '03:30 PM', fare: 0.0 },
+    ],
+  },
+  {
+    id: 2,
+    routeCode: 'RT-02',
+    routeName: 'Route 02: Mirpur - Agargaon - Campus',
+    startPoint: 'Mirpur 10 Circle',
+    endPoint: 'School Main Campus',
+    distanceKm: 18.0,
+    monthlyFee: 2800.0,
+    vehicleId: 2,
+    vehicleNumber: 'DHK-METRO-CHA-11-2042',
+    pickupTime: '06:30 AM',
+    dropTime: '02:30 PM',
+    status: 'Active',
+    stops: [
+      { id: 6, routeId: 2, stopName: 'Mirpur 10 Circle (Origin)', stopOrder: 1, pickupTime: '06:30 AM', dropTime: '02:30 PM', fare: 2800.0 },
+      { id: 7, routeId: 2, stopName: 'Mirpur 1 Bus Stand', stopOrder: 2, pickupTime: '06:45 AM', dropTime: '02:45 PM', fare: 2600.0 },
+      { id: 8, routeId: 2, stopName: 'Agargaon Metro Station', stopOrder: 3, pickupTime: '07:05 AM', dropTime: '03:05 PM', fare: 2400.0 },
+      { id: 9, routeId: 2, stopName: 'Bijoy Sarani Intersection', stopOrder: 4, pickupTime: '07:25 AM', dropTime: '03:25 PM', fare: 2200.0 },
+      { id: 10, routeId: 2, stopName: 'School Campus Gate 2', stopOrder: 5, pickupTime: '07:50 AM', dropTime: '03:45 PM', fare: 0.0 },
+    ],
+  },
+  {
+    id: 3,
+    routeCode: 'RT-03',
+    routeName: 'Route 03: Dhanmondi - Mohakhali - Campus',
+    startPoint: 'Dhanmondi Road 27',
+    endPoint: 'School Main Campus',
+    distanceKm: 16.5,
+    monthlyFee: 3000.0,
+    vehicleId: 3,
+    vehicleNumber: 'DHK-METRO-GA-14-3015',
+    pickupTime: '06:40 AM',
+    dropTime: '02:30 PM',
+    status: 'Active',
+    stops: [
+      { id: 11, routeId: 3, stopName: 'Dhanmondi 27 (Origin)', stopOrder: 1, pickupTime: '06:40 AM', dropTime: '02:30 PM', fare: 3000.0 },
+      { id: 12, routeId: 3, stopName: 'Kalabagan Bus Stop', stopOrder: 2, pickupTime: '06:55 AM', dropTime: '02:45 PM', fare: 2800.0 },
+      { id: 13, routeId: 3, stopName: 'Farmgate Ananda Cinema', stopOrder: 3, pickupTime: '07:15 AM', dropTime: '03:05 PM', fare: 2500.0 },
+      { id: 14, routeId: 3, stopName: 'Mohakhali Flyover End', stopOrder: 4, pickupTime: '07:35 AM', dropTime: '03:25 PM', fare: 2200.0 },
+      { id: 15, routeId: 3, stopName: 'School Campus Gate 1', stopOrder: 5, pickupTime: '07:50 AM', dropTime: '03:40 PM', fare: 0.0 },
+    ],
+  },
+];
+
+const DEFAULT_PASSENGERS: TransportPassengerInfo[] = [
+  {
+    id: 1,
+    passengerType: 'Student',
+    studentId: 1,
+    patronName: 'Samiul Islam',
+    rollOrDesignation: 'Class 10 (Roll 1)',
+    phone: '+880 1718-123456',
+    emergencyContact: '+880 1718-998877',
+    routeId: 1,
+    routeCode: 'RT-01',
+    routeName: 'Route 01: Uttara - Airport - Campus',
+    vehicleId: 1,
+    vehicleNumber: 'DHK-METRO-CHA-11-2041',
+    stopId: 2,
+    stopName: 'House Building / Azampur',
+    seatNumber: 'Seat 01A',
+    allocationDate: '2026-01-10',
+    monthlyFare: 2500.0,
+    status: 'Active',
+    remarks: 'Regular daily commuter',
+  },
+  {
+    id: 2,
+    passengerType: 'Student',
+    studentId: 2,
+    patronName: 'Sadia Jahan',
+    rollOrDesignation: 'Class 10 (Roll 2)',
+    phone: '+880 1819-112233',
+    emergencyContact: '+880 1819-556677',
+    routeId: 1,
+    routeCode: 'RT-01',
+    routeName: 'Route 01: Uttara - Airport - Campus',
+    vehicleId: 1,
+    vehicleNumber: 'DHK-METRO-CHA-11-2041',
+    stopId: 2,
+    stopName: 'House Building / Azampur',
+    seatNumber: 'Seat 01B',
+    allocationDate: '2026-01-10',
+    monthlyFare: 2500.0,
+    status: 'Active',
+    remarks: 'Sibling discount verified',
+  },
+  {
+    id: 3,
+    passengerType: 'Student',
+    studentId: 3,
+    patronName: 'Tanvir Hasan',
+    rollOrDesignation: 'Class 10 (Roll 3)',
+    phone: '+880 1912-334455',
+    emergencyContact: '+880 1912-887766',
+    routeId: 2,
+    routeCode: 'RT-02',
+    routeName: 'Route 02: Mirpur - Agargaon - Campus',
+    vehicleId: 2,
+    vehicleNumber: 'DHK-METRO-CHA-11-2042',
+    stopId: 8,
+    stopName: 'Agargaon Metro Station',
+    seatNumber: 'Seat 04A',
+    allocationDate: '2026-01-12',
+    monthlyFare: 2800.0,
+    status: 'Active',
+    remarks: 'Agargaon boarding stage',
+  },
+  {
+    id: 4,
+    passengerType: 'Teacher',
+    teacherId: 1,
+    patronName: 'Dr. Mohammad Rafiqul Islam',
+    rollOrDesignation: 'Principal & Senior Faculty',
+    phone: '+880 1711-889900',
+    emergencyContact: '+880 1711-889900',
+    routeId: 3,
+    routeCode: 'RT-03',
+    routeName: 'Route 03: Dhanmondi - Mohakhali - Campus',
+    vehicleId: 3,
+    vehicleNumber: 'DHK-METRO-GA-14-3015',
+    stopId: 11,
+    stopName: 'Dhanmondi 27 (Origin)',
+    seatNumber: 'Seat 01F',
+    allocationDate: '2025-08-01',
+    monthlyFare: 0.0,
+    status: 'Active',
+    remarks: 'Complimentary faculty transport',
+  },
+];
+
+// ==================== PHASE 12: DEFAULT HOSTEL DATA ====================
+const DEFAULT_HOSTEL_BLOCKS: HostelBlockInfo[] = [
+  {
+    id: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    genderType: 'Boys',
+    wardenName: 'Md. Rafiqul Islam',
+    wardenPhone: '+880 1711-234567',
+    address: 'North Campus, Gate 3',
+    totalFloors: 3,
+    status: 'Active',
+  },
+  {
+    id: 2,
+    blockName: 'Rokeya Hall (Girls Block B)',
+    genderType: 'Girls',
+    wardenName: 'Dr. Farida Begum',
+    wardenPhone: '+880 1722-345678',
+    address: 'South Campus, Residential Area',
+    totalFloors: 3,
+    status: 'Active',
+  },
+  {
+    id: 3,
+    blockName: 'Pioneer Hall (Junior Dormitory)',
+    genderType: 'Boys',
+    wardenName: 'Kamal Hossain',
+    wardenPhone: '+880 1733-456789',
+    address: 'East Campus, Building 5',
+    totalFloors: 2,
+    status: 'Active',
+  },
+];
+
+const DEFAULT_HOSTEL_ROOMS: HostelRoomInfo[] = [
+  {
+    id: 1,
+    blockId: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    roomNumber: 'A-101',
+    floorNumber: 1,
+    roomType: 'Double',
+    capacity: 2,
+    monthlyFee: 3500.0,
+    amenities: 'Attached Bath, Study Table, Balcony',
+    status: 'Full',
+    occupiedCount: 2,
+  },
+  {
+    id: 2,
+    blockId: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    roomNumber: 'A-102',
+    floorNumber: 1,
+    roomType: 'Triple',
+    capacity: 3,
+    monthlyFee: 3000.0,
+    amenities: 'Shared Bath, Study Desk, Ceiling Fan',
+    status: 'Available',
+    occupiedCount: 1,
+  },
+  {
+    id: 3,
+    blockId: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    roomNumber: 'A-201',
+    floorNumber: 2,
+    roomType: 'Single',
+    capacity: 1,
+    monthlyFee: 5500.0,
+    amenities: 'Attached Bath, Air Conditioning, Executive Desk',
+    status: 'Available',
+    occupiedCount: 0,
+  },
+  {
+    id: 4,
+    blockId: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    roomNumber: 'A-202',
+    floorNumber: 2,
+    roomType: '4-Bed Dorm',
+    capacity: 4,
+    monthlyFee: 2500.0,
+    amenities: 'Bunk Beds, Common Bath, Wi-Fi',
+    status: 'Available',
+    occupiedCount: 0,
+  },
+  {
+    id: 5,
+    blockId: 2,
+    blockName: 'Rokeya Hall (Girls Block B)',
+    roomNumber: 'B-101',
+    floorNumber: 1,
+    roomType: 'Double',
+    capacity: 2,
+    monthlyFee: 3500.0,
+    amenities: 'Attached Bath, Built-in Wardrobe, Study Lamps',
+    status: 'Available',
+    occupiedCount: 1,
+  },
+  {
+    id: 6,
+    blockId: 2,
+    blockName: 'Rokeya Hall (Girls Block B)',
+    roomNumber: 'B-102',
+    floorNumber: 1,
+    roomType: 'Triple',
+    capacity: 3,
+    monthlyFee: 3000.0,
+    amenities: 'Shared Bath, 3 Study Desks, High Security Intercom',
+    status: 'Available',
+    occupiedCount: 0,
+  },
+  {
+    id: 7,
+    blockId: 3,
+    blockName: 'Pioneer Hall (Junior Dormitory)',
+    roomNumber: 'J-101',
+    floorNumber: 1,
+    roomType: '4-Bed Dorm',
+    capacity: 4,
+    monthlyFee: 2400.0,
+    amenities: 'Bunk Beds, Matron Supervision, Study Hall Access',
+    status: 'Available',
+    occupiedCount: 0,
+  },
+];
+
+const DEFAULT_HOSTEL_ALLOCATIONS: HostelAllocationInfo[] = [
+  {
+    id: 1,
+    roomId: 1,
+    roomNumber: 'A-101',
+    blockId: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    studentId: 1,
+    studentRegNo: 'STU-2026-0001',
+    studentName: 'Samiul Islam',
+    studentGender: 'Male',
+    bedNumber: 'Bed-1',
+    admissionDate: '2026-01-05',
+    guardianContact: '+880 1819-112233',
+    emergencyPhone: '+880 1819-112233',
+    remarks: 'Hostel prefect & debater',
+    status: 'Active',
+  },
+  {
+    id: 2,
+    roomId: 1,
+    roomNumber: 'A-101',
+    blockId: 1,
+    blockName: 'Iqbal Hall (Boys Block A)',
+    studentId: 3,
+    studentRegNo: 'STU-2026-0003',
+    studentName: 'Tanvir Hasan',
+    studentGender: 'Male',
+    bedNumber: 'Bed-2',
+    admissionDate: '2026-01-05',
+    guardianContact: '+880 1912-334455',
+    emergencyPhone: '+880 1912-887766',
+    remarks: 'Football team forward',
+    status: 'Active',
+  },
+  {
+    id: 3,
+    roomId: 5,
+    roomNumber: 'B-101',
+    blockId: 2,
+    blockName: 'Rokeya Hall (Girls Block B)',
+    studentId: 2,
+    studentRegNo: 'STU-2026-0002',
+    studentName: 'Sadia Jahan',
+    studentGender: 'Female',
+    bedNumber: 'Bed-A',
+    admissionDate: '2026-01-08',
+    guardianContact: '+880 1711-445566',
+    emergencyPhone: '+880 1711-445566',
+    remarks: 'Science Olympiad competitor',
+    status: 'Active',
+  },
+];
+
+const DEFAULT_HOSTEL_GATE_PASSES: HostelGatePassInfo[] = [
+  {
+    id: 1,
+    passNumber: 'GP-20260211-0001',
+    allocationId: 1,
+    studentName: 'Samiul Islam',
+    studentRegNo: 'STU-2026-0001',
+    roomNumber: 'A-101',
+    blockName: 'Iqbal Hall (Boys Block A)',
+    purpose: 'Home Visit (Weekend Leave)',
+    leaveDate: '2026-02-13',
+    expectedReturnDate: '2026-02-15',
+    wardenApproval: 'Approved',
+    status: 'Out',
+    remarks: 'Guardian confirmed via phone',
+  },
+];
+
+// ==================== PHASE 13: DEFAULT NOTICES & EVENTS ====================
+const DEFAULT_NOTICES: SchoolNoticeInfo[] = [
+  {
+    id: 1,
+    referenceNo: 'CIR-2026/001',
+    title: 'Commencement of Academic Session 2026 & Orientation Protocol',
+    category: 'Academic',
+    targetAudience: 'All',
+    priority: 'Important',
+    isPinned: true,
+    publishDate: '2026-01-02',
+    expiryDate: '2026-04-30',
+    content:
+      'We are delighted to welcome all students, faculty, and guardians to Academic Session 2026.\n1. Regular classes for Classes 1 to 10 will begin promptly at 08:00 AM.\n2. Standard school uniform and student ID cards are mandatory for campus entry.\n3. School transport routes and bus passes will be activated from Monday.',
+    attachmentName: 'Orientation_Guide_2026.pdf',
+    status: 'Published',
+    createdBy: 'Principal Office',
+  },
+  {
+    id: 2,
+    referenceNo: 'CIR-2026/002',
+    title: 'URGENT: Half-Yearly Examination Routine & Admit Card Distribution',
+    category: 'Exam',
+    targetAudience: 'Students',
+    priority: 'Urgent',
+    isPinned: true,
+    publishDate: '2026-02-05',
+    expiryDate: '2026-03-30',
+    content:
+      'All Class Teachers and Subject Instructors are requested to submit final question papers by March 15.\nAdmit Cards with candidate examination roll numbers and seating allocations will be released on March 20.\nStudents with outstanding tuition fees are advised to clear accounts prior to admit card issuance.',
+    attachmentName: 'Half_Yearly_Routine_2026.pdf',
+    status: 'Published',
+    createdBy: 'Exam Controller Board',
+  },
+  {
+    id: 3,
+    referenceNo: 'CIR-2026/003',
+    title: 'Annual Inter-House Sports & Athletic Championship 2026',
+    category: 'Sports',
+    targetAudience: 'Students',
+    priority: 'Normal',
+    isPinned: false,
+    publishDate: '2026-02-01',
+    expiryDate: '2026-03-15',
+    content:
+      'The Annual Athletics Meet will be hosted at the main playground.\nHouse captains (Sher-e-Bangla, Fazlul Huq, Nazrul, and Begum Rokeya) must submit athlete rosters for track and field events (100m sprint, relay, long jump, badminton) to the Sports Coordinator.',
+    attachmentName: 'Sports_Schedule.pdf',
+    status: 'Published',
+    createdBy: 'Physical Education Dept',
+  },
+  {
+    id: 4,
+    referenceNo: 'CIR-2026/004',
+    title: 'Faculty Development Seminar on AI in K-12 STEM Curriculum',
+    category: 'Administrative',
+    targetAudience: 'Teachers',
+    priority: 'Important',
+    isPinned: false,
+    publishDate: '2026-02-08',
+    expiryDate: '2026-02-28',
+    content:
+      'A mandatory professional development seminar for all Senior Science and Mathematics teachers.\nKeynote address by Dr. Kazi M. Rahman on integrating practical coding and robotics labs.\nAttendance will be recorded in the biometric staff register.',
+    status: 'Published',
+    createdBy: 'Academic Vice Principal',
+  },
+  {
+    id: 5,
+    referenceNo: 'CIR-2026/005',
+    title: 'School Closure Notice on Account of National Mourning & Public Holiday',
+    category: 'Holiday',
+    targetAudience: 'All',
+    priority: 'Normal',
+    isPinned: false,
+    publishDate: '2026-01-20',
+    expiryDate: '2026-03-01',
+    content:
+      'In observance of the official National Holiday, all academic lectures, library services, and administrative offices will remain closed. Regular classes resume the following working day.',
+    status: 'Published',
+    createdBy: 'General Administration',
+  },
+];
+
+const DEFAULT_EVENTS: SchoolEventInfo[] = [
+  {
+    id: 1,
+    eventTitle: 'Independence Day & National Cultural Exhibition',
+    eventCategory: 'Holiday',
+    startDate: '2026-03-26',
+    endDate: '2026-03-26',
+    startTime: '08:30 AM',
+    endTime: '01:00 PM',
+    venue: 'Campus Main Grounds',
+    targetAudience: 'All',
+    isHoliday: true,
+    colorCode: '#DC2626',
+    description: 'Flag hoisting ceremony followed by patriotic songs and student drama exhibition.',
+    organizer: 'Cultural Affairs Committee',
+  },
+  {
+    id: 2,
+    eventTitle: 'Half-Yearly Examination Period (All Classes)',
+    eventCategory: 'Exam',
+    startDate: '2026-04-15',
+    endDate: '2026-04-28',
+    startTime: '09:00 AM',
+    endTime: '12:00 PM',
+    venue: 'Exam Halls A, B & C',
+    targetAudience: 'Students',
+    isHoliday: false,
+    colorCode: '#D97706',
+    description: 'Official term examinations covering first semester syllabus for Class 1 to 10.',
+    organizer: 'Examination Board',
+  },
+  {
+    id: 3,
+    eventTitle: 'Annual Science & Robotics Tech Fair 2026',
+    eventCategory: 'Academic',
+    startDate: '2026-05-10',
+    endDate: '2026-05-11',
+    startTime: '10:00 AM',
+    endTime: '04:30 PM',
+    venue: 'Science Building Quadrangle',
+    targetAudience: 'All',
+    isHoliday: false,
+    colorCode: '#059669',
+    description: 'Inter-school science competition with 40+ innovative student project displays.',
+    organizer: 'Young Scientists Club',
+  },
+  {
+    id: 4,
+    eventTitle: 'Eid-ul-Fitr Vacation (Institutional Recess)',
+    eventCategory: 'Holiday',
+    startDate: '2026-03-30',
+    endDate: '2026-04-06',
+    startTime: 'Full Day',
+    endTime: 'Full Day',
+    venue: 'School-wide',
+    targetAudience: 'All',
+    isHoliday: true,
+    colorCode: '#DC2626',
+    description: 'Annual religious festival recess. Hostel boarders may apply for home visit outpasses.',
+    organizer: 'School Administration',
+  },
+  {
+    id: 5,
+    eventTitle: 'Parent-Teacher Conference & Progress Report Meeting (PTM)',
+    eventCategory: 'PTM',
+    startDate: '2026-05-20',
+    endDate: '2026-05-20',
+    startTime: '09:00 AM',
+    endTime: '02:00 PM',
+    venue: 'Respective Classrooms',
+    targetAudience: 'Parents',
+    isHoliday: false,
+    colorCode: '#7C3AED',
+    description: 'One-on-one progress review between guardians and Class Teachers regarding student GPA.',
+    organizer: 'Academic Council',
+  },
+  {
+    id: 6,
+    eventTitle: 'Inter-School Football Championship Finals',
+    eventCategory: 'Sports',
+    startDate: '2026-06-05',
+    endDate: '2026-06-05',
+    startTime: '03:00 PM',
+    endTime: '06:00 PM',
+    venue: 'Outer Football Stadium',
+    targetAudience: 'All',
+    isHoliday: false,
+    colorCode: '#2563EB',
+    description: 'Final championship match between Ideal Model High School and St. Joseph College.',
+    organizer: 'Sports Committee',
+  },
+];
+
 export const storage = StorageService;
+
+
 
 
 

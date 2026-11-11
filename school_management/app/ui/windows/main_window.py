@@ -21,6 +21,11 @@ from app.ui.pages.fees_management_page import FeesManagementPage
 from app.ui.pages.accounting_page import AccountingPage
 from app.ui.pages.exam_management_page import ExamManagementPage
 from app.ui.pages.timetable_page import TimetablePage
+from app.ui.pages.library_page import LibraryPage
+from app.ui.pages.transport_page import TransportPage
+from app.ui.pages.hostel_page import HostelPage
+from app.ui.pages.notice_page import NoticePage
+from app.ui.pages.reports_page import ReportsPage
 from app.ui.themes.styles import DARK_THEME_QSS, LIGHT_THEME_QSS
 from app.services.auth_service import AuthService
 from app.database.connection import SessionLocal
@@ -109,7 +114,27 @@ class MainWindow(QMainWindow):
         self.timetable_page = TimetablePage(self)
         self.stack.addWidget(self.timetable_page)
 
-        # Module Placeholders (Ready for Phases 10 - 17)
+        # Library Management Page (Phase 10)
+        self.library_page = LibraryPage(self)
+        self.stack.addWidget(self.library_page)
+
+        # Transport & Fleet Management Page (Phase 11)
+        self.transport_page = TransportPage(self)
+        self.stack.addWidget(self.transport_page)
+
+        # Hostel & Dormitory Management Page (Phase 12)
+        self.hostel_page = HostelPage(self)
+        self.stack.addWidget(self.hostel_page)
+
+        # Notice Board & Academic Events Page (Phase 13)
+        self.notice_page = NoticePage(self)
+        self.stack.addWidget(self.notice_page)
+
+        # Comprehensive Reports & Analytics Page (Phase 14)
+        self.reports_page = ReportsPage(self, db_session=SessionLocal())
+        self.stack.addWidget(self.reports_page)
+
+        # Module Placeholders (Ready for Phases 15 - 17)
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
@@ -122,14 +147,14 @@ class MainWindow(QMainWindow):
             "exams": 8,
             "results": 8,
             "timetable": 9,
+            "library": 10,
+            "transport": 11,
+            "hostel": 12,
+            "notices": 13,
+            "events": 13,
+            "reports": 14,
         }
         module_names = [
-            ("library", "Phase 10: Library Circulation"),
-            ("transport", "Phase 11: Transport & Fleet Management"),
-            ("hostel", "Phase 12: Hostel & Dormitory Management"),
-            ("notices", "Phase 13: Notices & Bulletin Board"),
-            ("events", "Phase 13: School Calendar Events"),
-            ("reports", "Phase 14: Comprehensive Reports"),
             ("certificates", "Phase 15: Certificate & ID Generator"),
             ("settings", "Phase 1: School Settings & System Preferences"),
         ]
@@ -183,6 +208,16 @@ class MainWindow(QMainWindow):
                 self.exam_page.refresh_all()
             elif module_key == "timetable":
                 self.timetable_page.refresh_all()
+            elif module_key == "library":
+                self.library_page.refresh_all()
+            elif module_key == "transport":
+                self.transport_page.refresh_all()
+            elif module_key == "hostel":
+                self.hostel_page.refresh_all()
+            elif module_key in ("notices", "events"):
+                self.notice_page.refresh_all()
+            elif module_key == "reports":
+                self.reports_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme

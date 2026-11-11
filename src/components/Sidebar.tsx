@@ -45,15 +45,15 @@ export const MODULE_ITEMS = [
   { id: 'exams', label: 'Exams', icon: FileSpreadsheet, badge: 'Live', phase: 8 },
   { id: 'results', label: 'Results & GPA', icon: Award, badge: 'Live', phase: 8 },
   { id: 'timetable', label: 'Timetable', icon: Clock, badge: 'Live', phase: 9 },
-  { id: 'library', label: 'Library', icon: Library, badge: 'Phase 10', phase: 10 },
-  { id: 'transport', label: 'Transport', icon: Bus, badge: 'Phase 11', phase: 11 },
-  { id: 'hostel', label: 'Hostel', icon: Building2, badge: 'Phase 12', phase: 12 },
-  { id: 'notices', label: 'Notices', icon: Bell, badge: 'Phase 13', phase: 13 },
-  { id: 'events', label: 'Events Calendar', icon: CalendarDays, badge: 'Phase 13', phase: 13 },
+  { id: 'library', label: 'Library', icon: Library, badge: 'Live', phase: 10 },
+  { id: 'transport', label: 'Transport', icon: Bus, badge: 'Live', phase: 11 },
+  { id: 'hostel', label: 'Hostel', icon: Building2, badge: 'Live', phase: 12 },
+  { id: 'notices', label: 'Notices', icon: Bell, badge: 'Live', phase: 13 },
+  { id: 'events', label: 'Events Calendar', icon: CalendarDays, badge: 'Live', phase: 13 },
   { id: 'reports', label: 'Reports & Export', icon: FileBarChart, badge: 'Phase 14', phase: 14 },
   { id: 'certificates', label: 'Certificates & IDs', icon: BadgeCheck, badge: 'Phase 15', phase: 15 },
   { id: 'settings', label: 'School Settings', icon: Settings, badge: 'Active', phase: 1 },
-  { id: 'python_explorer', label: 'Python Source & EXE', icon: FileCode2, badge: 'Phases 1-9 Files', phase: 1, highlight: true },
+  { id: 'python_explorer', label: 'Python Source & EXE', icon: FileCode2, badge: 'Phases 1-13 Files', phase: 1, highlight: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

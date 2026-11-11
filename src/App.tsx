@@ -12,6 +12,10 @@ import { FeesManagement } from './pages/FeesManagement';
 import { AccountingManagement } from './pages/AccountingManagement';
 import { ExamManagement } from './pages/ExamManagement';
 import { TimetableManagement } from './pages/TimetableManagement';
+import { LibraryManagement } from './pages/LibraryManagement';
+import { TransportManagement } from './pages/TransportManagement';
+import { HostelManagement } from './pages/HostelManagement';
+import { NoticeManagement } from './pages/NoticeManagement';
 import { ModulePlaceholder } from './pages/ModulePlaceholder';
 import { PythonProjectExplorer } from './components/PythonProjectExplorer';
 import { LoginModal } from './components/LoginModal';
@@ -258,6 +262,22 @@ export default function App() {
                   schoolSetting={schoolSetting}
                   currentUser={currentUser}
                 />
+              </div>
+            ) : currentModule === 'library' ? (
+              <div className="p-6">
+                <LibraryManagement />
+              </div>
+            ) : currentModule === 'transport' ? (
+              <div className="p-6">
+                <TransportManagement />
+              </div>
+            ) : currentModule === 'hostel' ? (
+              <div className="p-6">
+                <HostelManagement />
+              </div>
+            ) : currentModule === 'notices' || currentModule === 'events' ? (
+              <div className="p-6">
+                <NoticeManagement />
               </div>
             ) : currentModule === 'python_explorer' ? (
               <PythonProjectExplorer isDark={isDark} />

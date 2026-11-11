@@ -450,7 +450,334 @@ export interface TimetableConflict {
   conflictingClass?: string;
 }
 
+// ----------------- Phase 10: Library Circulation & Catalog -----------------
+export interface BookCategoryInfo {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+}
 
+export interface BookInfo {
+  id: number;
+  accessionNo: string;
+  title: string;
+  author: string;
+  publisher?: string;
+  isbn?: string;
+  edition?: string;
+  publicationYear?: number;
+  categoryId: number;
+  categoryName: string;
+  rackNumber?: string;
+  shelfNumber?: string;
+  totalCopies: number;
+  availableCopies: number;
+  issuedCopies: number;
+  price: number;
+  status: 'Available' | 'Out of Stock' | 'Discontinued';
+}
+
+export interface LibraryMemberInfo {
+  id: number;
+  memberId: string;
+  memberType: 'Student' | 'Teacher' | 'Staff';
+  studentId?: number;
+  teacherId?: number;
+  staffId?: number;
+  patronName: string;
+  rollOrDesignation?: string;
+  cardIssueDate: string;
+  maxAllowedBooks: number;
+  activeLoanCount: number;
+  status: 'Active' | 'Suspended' | 'Expired';
+}
+
+export interface BookCirculationRecord {
+  id: number;
+  bookId: number;
+  accessionNo: string;
+  bookTitle: string;
+  memberId: number;
+  memberCode: string;
+  patronName: string;
+  memberType: 'Student' | 'Teacher' | 'Staff';
+  issueDate: string;
+  dueDate: string;
+  returnDate?: string;
+  status: 'Issued' | 'Returned' | 'Overdue';
+  fineAmount: number;
+  finePaid: boolean;
+  issuedBy?: string;
+  remarks?: string;
+}
+
+export interface LibraryStatsInfo {
+  totalTitles: number;
+  totalInventoryCopies: number;
+  availableCopies: number;
+  currentlyIssued: number;
+  overdueCount: number;
+  activeMembers: number;
+  totalFineCollected: number;
+}
+
+// ----------------- Phase 11: Transport & Fleet Management -----------------
+export interface VehicleInfo {
+  id: number;
+  vehicleNumber: string;
+  vehicleModel: string;
+  vehicleType: 'Bus' | 'Minibus' | 'Van' | 'Coaster';
+  seatingCapacity: number;
+  driverName: string;
+  driverPhone: string;
+  driverLicense?: string;
+  helperName?: string;
+  helperPhone?: string;
+  insuranceExpiry?: string;
+  fitnessExpiry?: string;
+  status: 'Active' | 'Maintenance' | 'Out of Service';
+}
+
+export interface TransportStopInfo {
+  id: number;
+  routeId: number;
+  stopName: string;
+  stopOrder: number;
+  pickupTime?: string;
+  dropTime?: string;
+  fare?: number;
+}
+
+export interface TransportRouteInfo {
+  id: number;
+  routeCode: string;
+  routeName: string;
+  startPoint: string;
+  endPoint: string;
+  distanceKm: number;
+  monthlyFee: number;
+  vehicleId?: number;
+  vehicleNumber?: string;
+  pickupTime?: string;
+  dropTime?: string;
+  stops: TransportStopInfo[];
+  status: 'Active' | 'Inactive';
+}
+
+export interface TransportPassengerInfo {
+  id: number;
+  passengerType: 'Student' | 'Teacher' | 'Staff';
+  studentId?: number;
+  teacherId?: number;
+  patronName: string;
+  rollOrDesignation?: string;
+  phone?: string;
+  emergencyContact?: string;
+  routeId: number;
+  routeCode: string;
+  routeName: string;
+  vehicleId?: number;
+  vehicleNumber?: string;
+  stopId?: number;
+  stopName?: string;
+  seatNumber?: string;
+  allocationDate: string;
+  monthlyFare: number;
+  status: 'Active' | 'Suspended' | 'Cancelled';
+  remarks?: string;
+}
+
+export interface TransportStatsInfo {
+  totalVehicles: number;
+  activeVehicles: number;
+  totalRoutes: number;
+  totalCapacity: number;
+  allocatedPassengers: number;
+  availableSeats: number;
+  monthlyRevenue: number;
+}
+
+// ----------------- Phase 12: Hostel & Dormitory Management -----------------
+export interface HostelBlockInfo {
+  id: number;
+  blockName: string;
+  genderType: 'Boys' | 'Girls' | 'Co-ed';
+  wardenName: string;
+  wardenPhone: string;
+  address?: string;
+  totalFloors: number;
+  status: 'Active' | 'Maintenance';
+}
+
+export interface HostelRoomInfo {
+  id: number;
+  blockId: number;
+  blockName: string;
+  roomNumber: string;
+  floorNumber: number;
+  roomType: 'Single' | 'Double' | 'Triple' | '4-Bed Dorm' | '6-Bed Dorm';
+  capacity: number;
+  monthlyFee: number;
+  amenities: string;
+  status: 'Available' | 'Full' | 'Maintenance';
+  occupiedCount?: number;
+}
+
+export interface HostelAllocationInfo {
+  id: number;
+  roomId: number;
+  roomNumber: string;
+  blockId?: number;
+  blockName: string;
+  studentId: number;
+  studentRegNo: string;
+  studentName: string;
+  studentGender?: string;
+  bedNumber: string;
+  admissionDate: string;
+  vacateDate?: string;
+  guardianContact?: string;
+  emergencyPhone?: string;
+  remarks?: string;
+  status: 'Active' | 'Vacated' | 'Suspended';
+}
+
+export interface HostelGatePassInfo {
+  id: number;
+  passNumber: string;
+  allocationId: number;
+  studentName: string;
+  studentRegNo?: string;
+  roomNumber: string;
+  blockName: string;
+  purpose: string;
+  leaveDate: string;
+  expectedReturnDate: string;
+  actualReturnDate?: string;
+  wardenApproval: 'Approved' | 'Pending' | 'Rejected';
+  status: 'Out' | 'Returned' | 'Overstayed' | 'Cancelled';
+  remarks?: string;
+}
+
+export interface HostelStatsInfo {
+  totalBlocks: number;
+  totalRooms: number;
+  totalCapacity: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  occupancyRate: number;
+  boardersOut: number;
+  presentInHostel: number;
+}
+
+// ----------------- Phase 13: Notice Board, Circulars & Events Calendar -----------------
+export interface SchoolNoticeInfo {
+  id: number;
+  referenceNo: string;
+  title: string;
+  category: 'Academic' | 'Exam' | 'Holiday' | 'Administrative' | 'Sports' | 'Fee' | 'Emergency';
+  targetAudience: 'All' | 'Students' | 'Teachers' | 'Parents' | 'Staff';
+  targetClassId?: number;
+  priority: 'Normal' | 'Important' | 'Urgent';
+  isPinned: boolean;
+  publishDate: string;
+  expiryDate?: string;
+  content: string;
+  attachmentName?: string;
+  status: 'Published' | 'Draft' | 'Archived';
+  createdBy: string;
+}
+
+export interface SchoolEventInfo {
+  id: number;
+  eventTitle: string;
+  eventCategory: 'Academic' | 'Holiday' | 'Exam' | 'Sports' | 'Cultural' | 'PTM' | 'Meeting' | 'Tour';
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+  venue: string;
+  targetAudience: string;
+  isHoliday: boolean;
+  colorCode: string;
+  description?: string;
+  organizer: string;
+}
+
+export interface NoticeStatsInfo {
+  totalNotices: number;
+  publishedNotices: number;
+  urgentAlerts: number;
+  upcomingEvents: number;
+  totalHolidays: number;
+}
+
+export interface FeeDefaulterRecord {
+  invoiceId: number;
+  invoiceNumber: string;
+  studentId: number;
+  studentName: string;
+  admissionNumber: string;
+  classSection: string;
+  guardianPhone: string;
+  title: string;
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  dueDate: string;
+  daysOverdue: number;
+  status: string;
+}
+
+export interface ClassAttendanceAuditItem {
+  className: string;
+  totalRecords: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  attendancePercentage: number;
+}
+
+export interface ComprehensiveReportAnalytics {
+  totalStudents: number;
+  activeStudents: number;
+  maleStudents: number;
+  femaleStudents: number;
+  totalStaff: number;
+  activeStaff: number;
+  teachingStaff: number;
+  totalInvoiced: number;
+  totalCollected: number;
+  totalDues: number;
+  collectionEfficiency: number;
+  defaultersCount: number;
+  totalIncome: number;
+  totalExpenses: number;
+  netSurplus: number;
+  attendanceRate: number;
+  examTermsCount: number;
+  totalAssessed: number;
+  passRate: number;
+  avgGpa: number;
+  totalBooks: number;
+  activeLoans: number;
+  totalRoutes: number;
+  transportPassengers: number;
+  hostelCapacity: number;
+  hostelOccupancy: number;
+  hostelOccupancyRate: number;
+  classAttendanceList: ClassAttendanceAuditItem[];
+  defaultersList: FeeDefaulterRecord[];
+}
+
+export interface ReportFilterConfig {
+  reportType: 'executive' | 'defaulters' | 'demographics' | 'attendance' | 'financial';
+  classId?: number;
+  startDate?: string;
+  endDate?: string;
+  format: 'preview' | 'pdf' | 'csv' | 'xlsx';
+}
 
 
 
