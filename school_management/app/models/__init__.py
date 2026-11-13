@@ -22,7 +22,16 @@ from app.models.user import (
 )
 from app.models.school import SchoolSetting
 from app.models.activity import ActivityLog
-from app.models.academic import AcademicYear, SchoolClass, Section, Subject
+from app.models.academic import (
+    AcademicYear,
+    AcademicGroup,
+    AcademicShift,
+    AcademicRoom,
+    SchoolClass,
+    Section,
+    Subject,
+    StudentSubjectEnrollment,
+)
 from app.models.student import (
     StudentStatus,
     Guardian,
@@ -39,6 +48,7 @@ from app.models.student import (
     StudentTag,
     StudentStatusHistory,
     StudentPromotionHistory,
+    StudentTransferHistory,
     student_tag_assignments,
 )
 from app.models.staff import (
@@ -87,9 +97,13 @@ __all__ = [
     "SchoolSetting",
     "ActivityLog",
     "AcademicYear",
+    "AcademicGroup",
+    "AcademicShift",
+    "AcademicRoom",
     "SchoolClass",
     "Section",
     "Subject",
+    "StudentSubjectEnrollment",
     "StudentStatus",
     "Guardian",
     "Student",
@@ -105,6 +119,7 @@ __all__ = [
     "StudentTag",
     "StudentStatusHistory",
     "StudentPromotionHistory",
+    "StudentTransferHistory",
     "student_tag_assignments",
     "EmployeeStatus",
     "STAFF_ROLE_CATALOG",

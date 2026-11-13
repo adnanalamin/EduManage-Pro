@@ -1,11 +1,12 @@
 """
-EduManage Pro - Student Batch Promotion Dialog (PySide6)
-Enables annual promotion of students across classes, sections, and academic years
-while recording StudentPromotionHistory and StudentAcademicHistory entries.
+EduManage Pro - Student Batch Promotion & Graduation Dialog (PySide6)
+Supports annual batch promotion, optional graduation, sequential roll re-assignment,
+and strict historical record preservation across academic years.
 """
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -22,50 +24,78 @@ from PySide6.QtWidgets import (
 from app.database.connection import SessionLocal
 from app.models.academic import AcademicYear, SchoolClass, Section
 from app.models.student import Student, StudentStatus
-from app.services.student_service import StudentService
+from app.services.academic_service import AcademicService
 
 
 class StudentPromoteDialog(QDialog):
     def __init__(self, parent=None, actor: str = "admin"):
         super().__init__(parent)
         self.actor = actor
-        self.setWindowTitle("EduManage Pro — Student Academic Promotion")
-        self.setFixedSize(680, 520)
+        self.setWindowTitle("EduManage Pro — Student Academic Promotion & Graduation")
+        self.setFixedSize(760, 580)
         self._build_ui()
-        self._load_classes()
+        self._load_reference_data()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        top_grid = QHBoxLayout()
+        banner = QLabel(
+            "Promote selected students to a target Academic Session & Class, or mark graduating seniors as Graduated. "
+            "All previous academic year history & marks remain strictly preserved."
+        )
+        banner.setWordWrap(True)
+        banner.setStyleSheet(
+            "background-color: #EFF6FF; color: #1E3A8A; padding: 10px; border-radius: 6px; border: 1px solid #BFDBFE;"
+        )
+        layout.addWidget(banner)
+
+        row_src = QHBoxLayout()
         self.from_class_combo = QComboBox()
         self.from_class_combo.currentIndexChanged.connect(self._load_students)
+        row_src.addWidget(QLabel("Source Class:"))
+        row_src.addWidget(self.from_class_combo, stretch=1)
 
-        self.to_class_combo = QComboBox()
-        self.to_section_combo = QComboBox()
+        self.graduated_chk = QCheckBox("Mark Selected Students as Graduated")
+        self.graduated_chk.toggled.connect(self._on_grad_toggled)
+        row_src.addWidget(self.graduated_chk)
+        layout.addLayout(row_src)
+
+        top_grid = QHBoxLayout()
         self.to_ay_combo = QComboBox()
+        self.to_ay_combo.currentIndexChanged.connect(self._on_target_year_changed)
+        self.to_class_combo = QComboBox()
+        self.to_class_combo.currentIndexChanged.connect(self._on_target_class_changed)
+        self.to_section_combo = QComboBox()
 
-        top_grid.addWidget(QLabel("From Class:"))
-        top_grid.addWidget(self.from_class_combo)
-        top_grid.addWidget(QLabel("Promote To:"))
-        top_grid.addWidget(self.to_class_combo)
-        top_grid.addWidget(QLabel("Section:"))
-        top_grid.addWidget(self.to_section_combo)
-        top_grid.addWidget(QLabel("Session:"))
+        top_grid.addWidget(QLabel("Target Session:"))
         top_grid.addWidget(self.to_ay_combo)
+        top_grid.addWidget(QLabel("Promote To Class:"))
+        top_grid.addWidget(self.to_class_combo)
+        top_grid.addWidget(QLabel("Target Section:"))
+        top_grid.addWidget(self.to_section_combo)
         layout.addLayout(top_grid)
 
+        roll_row = QHBoxLayout()
+        self.auto_roll_chk = QCheckBox("Re-assign Sequential Rolls Starting From:")
+        self.start_roll_spin = QSpinBox()
+        self.start_roll_spin.setRange(1, 9999)
+        self.start_roll_spin.setValue(1)
+        self.start_roll_spin.setEnabled(False)
+        self.auto_roll_chk.toggled.connect(self.start_roll_spin.setEnabled)
+
         self.remarks_input = QLineEdit("Year-end batch promotion")
-        rem_row = QHBoxLayout()
-        rem_row.addWidget(QLabel("Promotion Remarks:"))
-        rem_row.addWidget(self.remarks_input, stretch=1)
-        layout.addLayout(rem_row)
+        roll_row.addWidget(self.auto_roll_chk)
+        roll_row.addWidget(self.start_roll_spin)
+        roll_row.addSpacing(12)
+        roll_row.addWidget(QLabel("Remarks:"))
+        roll_row.addWidget(self.remarks_input, stretch=1)
+        layout.addLayout(roll_row)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Select", "Roll", "Student ID", "Full Name"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Select", "Roll", "Student ID", "Full Name", "Current Session"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
 
@@ -86,7 +116,7 @@ class StudentPromoteDialog(QDialog):
 
         self.btn_promote = QPushButton("Execute Batch Promotion")
         self.btn_promote.setStyleSheet(
-            "background-color: #7c3aed; color: white; padding: 8px 16px; font-weight: bold; border-radius: 6px;"
+            "background-color: #7c3aed; color: white; padding: 8px 18px; font-weight: bold; border-radius: 6px;"
         )
         self.btn_promote.clicked.connect(self._run_promotion)
 
@@ -94,27 +124,78 @@ class StudentPromoteDialog(QDialog):
         btn_box.addWidget(self.btn_promote)
         layout.addLayout(btn_box)
 
-    def _load_classes(self):
+    def _on_grad_toggled(self, checked: bool):
+        self.to_ay_combo.setEnabled(not checked)
+        self.to_class_combo.setEnabled(not checked)
+        self.to_section_combo.setEnabled(not checked)
+        self.auto_roll_chk.setEnabled(not checked)
+        self.start_roll_spin.setEnabled((not checked) and self.auto_roll_chk.isChecked())
+        self.btn_promote.setText("Graduate Selected Students" if checked else "Execute Batch Promotion")
+        if checked:
+            self.remarks_input.setText("Graduated upon completing academic level")
+        else:
+            self.remarks_input.setText("Year-end batch promotion")
+
+    def _load_reference_data(self):
         db = SessionLocal()
         try:
-            classes = db.query(SchoolClass).order_by(SchoolClass.numeric_order).all()
+            self.from_class_combo.blockSignals(True)
+            self.from_class_combo.clear()
+            classes = (
+                db.query(SchoolClass)
+                .filter(SchoolClass.is_deleted == False)
+                .order_by(SchoolClass.academic_year_id.desc(), SchoolClass.numeric_order.asc())
+                .all()
+            )
             for c in classes:
-                self.from_class_combo.addItem(c.name, c.id)
-                self.to_class_combo.addItem(c.name, c.id)
+                yr_name = c.academic_year.name if c.academic_year else "-"
+                self.from_class_combo.addItem(f"{c.name} ({c.group}) — {yr_name}", c.id)
+            self.from_class_combo.blockSignals(False)
 
-            self.to_section_combo.addItem("Keep Existing", None)
-            for s in db.query(Section).all():
-                self.to_section_combo.addItem(s.name, s.id)
-
-            for y in db.query(AcademicYear).all():
-                self.to_ay_combo.addItem(y.name, y.id)
+            self.to_ay_combo.blockSignals(True)
+            self.to_ay_combo.clear()
+            years = db.query(AcademicYear).filter(AcademicYear.is_deleted == False).order_by(AcademicYear.start_date.desc()).all()
+            for y in years:
+                self.to_ay_combo.addItem(f"{y.name} ({y.status})", y.id)
+            self.to_ay_combo.blockSignals(False)
         finally:
             db.close()
+
+        self._on_target_year_changed()
         self._load_students()
+
+    def _on_target_year_changed(self):
+        ay_id = self.to_ay_combo.currentData()
+        db = SessionLocal()
+        try:
+            self.to_class_combo.blockSignals(True)
+            self.to_class_combo.clear()
+            q = db.query(SchoolClass).filter(SchoolClass.is_deleted == False)
+            if ay_id:
+                q = q.filter(SchoolClass.academic_year_id == ay_id)
+            for c in q.order_by(SchoolClass.numeric_order.asc()).all():
+                self.to_class_combo.addItem(f"{c.name} ({c.group} / {c.shift})", c.id)
+            self.to_class_combo.blockSignals(False)
+        finally:
+            db.close()
+        self._on_target_class_changed()
+
+    def _on_target_class_changed(self):
+        cls_id = self.to_class_combo.currentData()
+        db = SessionLocal()
+        try:
+            self.to_section_combo.clear()
+            self.to_section_combo.addItem("Keep Existing / Unassigned", None)
+            if cls_id:
+                for s in db.query(Section).filter(Section.class_id == cls_id, Section.is_deleted == False).all():
+                    self.to_section_combo.addItem(f"{s.name} ({s.shift})", s.id)
+        finally:
+            db.close()
 
     def _load_students(self):
         from_id = self.from_class_combo.currentData()
         if not from_id:
+            self.table.setRowCount(0)
             return
         db = SessionLocal()
         try:
@@ -138,6 +219,8 @@ class StudentPromoteDialog(QDialog):
                 self.table.setItem(i, 1, QTableWidgetItem(str(s.roll_number)))
                 self.table.setItem(i, 2, QTableWidgetItem(s.student_id))
                 self.table.setItem(i, 3, QTableWidgetItem(s.full_name))
+                yr_name = s.academic_year.name if s.academic_year else "-"
+                self.table.setItem(i, 4, QTableWidgetItem(yr_name))
         finally:
             db.close()
 
@@ -161,34 +244,46 @@ class StudentPromoteDialog(QDialog):
                 selected_ids.append(item.data(Qt.UserRole))
 
         if not selected_ids:
-            QMessageBox.warning(self, "No Selection", "Please select at least one student to promote.")
+            QMessageBox.warning(self, "No Selection", "Please select at least one student.")
             return
 
+        mark_grad = self.graduated_chk.isChecked()
         to_class = self.to_class_combo.currentData()
         to_section = self.to_section_combo.currentData()
         to_ay = self.to_ay_combo.currentData()
-        remarks = self.remarks_input.text().strip() or "Year-end batch promotion"
+        remarks = self.remarks_input.text().strip() or (
+            "Graduated" if mark_grad else "Year-end batch promotion"
+        )
 
+        if not mark_grad and (not to_class or not to_ay):
+            QMessageBox.warning(self, "Validation Error", "Target Academic Session and Class are required.")
+            return
+
+        action_label = "graduate" if mark_grad else f"promote to {self.to_class_combo.currentText()} ({self.to_ay_combo.currentText()})"
         confirm = QMessageBox.question(
             self,
-            "Confirm Batch Promotion",
-            f"Promote {len(selected_ids)} student(s) to {self.to_class_combo.currentText()}?",
+            "Confirm Academic Promotion",
+            f"Proceed to {action_label} for {len(selected_ids)} student(s)?\n"
+            "Previous academic year records will remain intact.",
             QMessageBox.Yes | QMessageBox.No,
         )
         if confirm == QMessageBox.Yes:
             db = SessionLocal()
             try:
-                ok, count, msg = StudentService.promote_students(
+                ok, count, msg = AcademicService.bulk_promote_students(
                     db,
                     student_ids=selected_ids,
                     to_class_id=to_class,
                     to_academic_year_id=to_ay,
                     to_section_id=to_section,
+                    auto_assign_rolls=self.auto_roll_chk.isChecked(),
+                    starting_roll=self.start_roll_spin.value(),
+                    mark_graduated=mark_grad,
                     remarks=remarks,
-                    actor=self.actor,
+                    current_user=self.actor,
                 )
                 if ok:
-                    QMessageBox.information(self, "Success", f"Successfully promoted {count} student(s)!")
+                    QMessageBox.information(self, "Success", msg)
                     self.accept()
                 else:
                     QMessageBox.warning(self, "Promotion Failed", msg)

@@ -55,6 +55,10 @@ class SchoolEvent(Base, TimestampMixin, SoftDeleteMixin):
     color_code = Column(String(20), default="#059669")
     description = Column(Text, nullable=True)
     organizer = Column(String(100), default="School Administration")
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"), nullable=True, index=True)
+    term_name = Column(String(60), nullable=True)
+
+    academic_year = relationship("AcademicYear")
 
     __table_args__ = (
         CheckConstraint("end_date >= start_date", name="ck_school_event_dates"),

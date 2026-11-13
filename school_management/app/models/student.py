@@ -226,6 +226,12 @@ class Student(Base, TimestampMixin, SoftDeleteMixin):
         cascade="all, delete-orphan",
         order_by="StudentPromotionHistory.id.desc()",
     )
+    transfer_history = relationship(
+        "StudentTransferHistory",
+        back_populates="student",
+        cascade="all, delete-orphan",
+        order_by="StudentTransferHistory.id.desc()",
+    )
     tags = relationship(
         "StudentTag",
         secondary=student_tag_assignments,
@@ -488,13 +494,53 @@ class StudentPromotionHistory(Base, TimestampMixin):
     student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
     from_class_id = Column(Integer, ForeignKey("school_classes.id", ondelete="RESTRICT"), nullable=False)
     to_class_id = Column(Integer, ForeignKey("school_classes.id", ondelete="RESTRICT"), nullable=False)
+    from_section_id = Column(Integer, ForeignKey("sections.id", ondelete="SET NULL"), nullable=True)
+    to_section_id = Column(Integer, ForeignKey("sections.id", ondelete="SET NULL"), nullable=True)
     from_academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="RESTRICT"), nullable=False)
     to_academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="RESTRICT"), nullable=False)
+    from_roll_number = Column(Integer, nullable=True)
+    to_roll_number = Column(Integer, nullable=True)
+    promotion_type = Column(String(30), default="Promoted", nullable=False)  # Promoted, Bulk Promoted, Graduated, Detained
+    gpa = Column(Float, nullable=True)
+    final_grade = Column(String(15), nullable=True)
     promoted_date = Column(Date, default=date.today, nullable=False)
     remarks = Column(String(255), nullable=True)
+    promoted_by = Column(String(80), default="admin", nullable=False)
 
     student = relationship("Student", back_populates="promotion_history")
     from_class = relationship("SchoolClass", foreign_keys=[from_class_id])
     to_class = relationship("SchoolClass", foreign_keys=[to_class_id])
+    from_section = relationship("Section", foreign_keys=[from_section_id])
+    to_section = relationship("Section", foreign_keys=[to_section_id])
     from_academic_year = relationship("AcademicYear", foreign_keys=[from_academic_year_id])
     to_academic_year = relationship("AcademicYear", foreign_keys=[to_academic_year_id])
+
+
+class StudentTransferHistory(Base, TimestampMixin):
+    """Audit trail for internal Class Transfers, Section Transfers, and Stream/Shift Transfers."""
+    __tablename__ = "student_transfer_history"
+
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="RESTRICT"), nullable=False, index=True)
+    transfer_type = Column(String(40), nullable=False, index=True)  # CLASS_TRANSFER, SECTION_TRANSFER, STREAM_TRANSFER
+    from_class_id = Column(Integer, ForeignKey("school_classes.id", ondelete="RESTRICT"), nullable=False)
+    to_class_id = Column(Integer, ForeignKey("school_classes.id", ondelete="RESTRICT"), nullable=False)
+    from_section_id = Column(Integer, ForeignKey("sections.id", ondelete="SET NULL"), nullable=True)
+    to_section_id = Column(Integer, ForeignKey("sections.id", ondelete="SET NULL"), nullable=True)
+    from_roll_number = Column(Integer, nullable=True)
+    to_roll_number = Column(Integer, nullable=True)
+    from_group = Column(String(40), nullable=True)
+    to_group = Column(String(40), nullable=True)
+    from_shift = Column(String(30), nullable=True)
+    to_shift = Column(String(30), nullable=True)
+    effective_date = Column(Date, default=date.today, nullable=False)
+    reason = Column(String(255), nullable=True)
+    transferred_by = Column(String(80), default="admin", nullable=False)
+
+    student = relationship("Student", back_populates="transfer_history")
+    academic_year = relationship("AcademicYear")
+    from_class = relationship("SchoolClass", foreign_keys=[from_class_id])
+    to_class = relationship("SchoolClass", foreign_keys=[to_class_id])
+    from_section = relationship("Section", foreign_keys=[from_section_id])
+    to_section = relationship("Section", foreign_keys=[to_section_id])
+

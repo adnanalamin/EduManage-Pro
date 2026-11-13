@@ -1,27 +1,44 @@
 """
 EduManage Pro - Subject Creation and Edit Dialog (PySide6)
-Configure Subject Name, Code, Type (Mandatory/Optional), Full/Pass/Theory/Practical Marks, and Assigned Teacher.
+Configure Subject Name, Code, Department, Group, Type (Mandatory/Optional/Elective),
+Credit Hours, Marks Distribution, and Subject Teacher.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QComboBox, QSpinBox, QPushButton, QMessageBox
-)
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+)
 from sqlalchemy.orm import Session
+
 from app.database.connection import SessionLocal
-from app.repositories.academic_repository import AcademicRepository
 from app.models.staff import Teacher
+from app.repositories.academic_repository import AcademicRepository
 from app.services.academic_service import AcademicService
 
 
 class SubjectFormDialog(QDialog):
-    def __init__(self, parent=None, subject_pk: int = None, default_class_id: int = None):
+    def __init__(
+        self,
+        parent=None,
+        subject_pk: int = None,
+        default_class_id: int = None,
+        default_year_id: int = None,
+    ):
         super().__init__(parent)
         self.subject_pk = subject_pk
         self.default_class_id = default_class_id
+        self.default_year_id = default_year_id
         self.setWindowTitle("Edit Subject" if subject_pk else "Add New Subject")
-        self.setFixedSize(480, 500)
+        self.setFixedSize(510, 560)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         self._init_ui()
@@ -29,10 +46,10 @@ class SubjectFormDialog(QDialog):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        header = QLabel("Subject Configuration" if not self.subject_pk else "Edit Subject Details")
+        header = QLabel("Subject & Curriculum Configuration" if not self.subject_pk else "Edit Subject Details")
         header.setStyleSheet("font-size: 16px; font-weight: bold; color: #1E3A8A;")
         layout.addWidget(header)
 
@@ -42,15 +59,15 @@ class SubjectFormDialog(QDialog):
         layout.addWidget(self.class_combo)
 
         # Subject Name
-        layout.addWidget(QLabel("Subject Name * (e.g. Physics, Higher Mathematics)"))
+        layout.addWidget(QLabel("Subject Name * (e.g. Physics, Higher Mathematics, Agriculture)"))
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("e.g. Physics")
         layout.addWidget(self.name_edit)
 
-        # Subject Code & Type
+        # Subject Code, Type & Credit Hours
         h_row1 = QHBoxLayout()
         v_code = QVBoxLayout()
-        v_code.addWidget(QLabel("Subject Code * (e.g. 174, 126)"))
+        v_code.addWidget(QLabel("Subject Code *"))
         self.code_edit = QLineEdit()
         self.code_edit.setPlaceholderText("e.g. 174")
         v_code.addWidget(self.code_edit)
@@ -59,10 +76,34 @@ class SubjectFormDialog(QDialog):
         v_type = QVBoxLayout()
         v_type.addWidget(QLabel("Subject Type"))
         self.type_combo = QComboBox()
-        self.type_combo.addItems(["Mandatory", "Optional"])
+        self.type_combo.addItems(["Mandatory", "Optional", "Elective"])
         v_type.addWidget(self.type_combo)
         h_row1.addLayout(v_type)
+
+        v_cred = QVBoxLayout()
+        v_cred.addWidget(QLabel("Credit Hours"))
+        self.credit_spin = QDoubleSpinBox()
+        self.credit_spin.setRange(0.5, 10.0)
+        self.credit_spin.setSingleStep(0.5)
+        self.credit_spin.setValue(1.0)
+        v_cred.addWidget(self.credit_spin)
+        h_row1.addLayout(v_cred)
         layout.addLayout(h_row1)
+
+        # Department & Group
+        h_dept = QHBoxLayout()
+        v_d = QVBoxLayout()
+        v_d.addWidget(QLabel("Academic Department"))
+        self.dept_combo = QComboBox()
+        v_d.addWidget(self.dept_combo)
+        h_dept.addLayout(v_d)
+
+        v_g = QVBoxLayout()
+        v_g.addWidget(QLabel("Academic Group"))
+        self.group_combo = QComboBox()
+        v_g.addWidget(self.group_combo)
+        h_dept.addLayout(v_g)
+        layout.addLayout(h_dept)
 
         # Marks Grid (Full, Pass, Theory, Practical)
         h_row2 = QHBoxLayout()
@@ -104,6 +145,11 @@ class SubjectFormDialog(QDialog):
         self.teacher_combo = QComboBox()
         layout.addWidget(self.teacher_combo)
 
+        layout.addWidget(QLabel("Syllabus Summary / Description"))
+        self.desc_edit = QLineEdit()
+        self.desc_edit.setPlaceholderText("Optional syllabus notes...")
+        layout.addWidget(self.desc_edit)
+
         layout.addStretch()
 
         # Buttons
@@ -115,7 +161,9 @@ class SubjectFormDialog(QDialog):
         btn_box.addWidget(cancel_btn)
 
         save_btn = QPushButton("Save Subject")
-        save_btn.setStyleSheet("background-color: #2563EB; color: white; font-weight: bold; padding: 6px 16px; border-radius: 4px;")
+        save_btn.setStyleSheet(
+            "background-color: #2563EB; color: white; font-weight: bold; padding: 7px 16px; border-radius: 4px;"
+        )
         save_btn.clicked.connect(self._on_save)
         btn_box.addWidget(save_btn)
 
@@ -124,12 +172,34 @@ class SubjectFormDialog(QDialog):
     def _load_data(self):
         db: Session = SessionLocal()
         try:
-            classes = AcademicRepository.get_classes(db)
+            AcademicService.ensure_academic_defaults(db)
+
+            classes = AcademicRepository.get_classes(db, academic_year_id=self.default_year_id)
+            if not classes and self.default_year_id is not None:
+                classes = AcademicRepository.get_classes(db)
             self.class_combo.clear()
             for c in classes:
-                self.class_combo.addItem(f"{c.name} ({c.group})", c.id)
+                yr_name = c.academic_year.name if c.academic_year else ""
+                self.class_combo.addItem(f"{c.name} ({c.group} | {yr_name})", c.id)
 
-            teachers = db.query(Teacher).filter(Teacher.status == "active").order_by(Teacher.full_name).all()
+            depts = AcademicRepository.get_departments(db)
+            self.dept_combo.clear()
+            self.dept_combo.addItem("-- Unassigned --", None)
+            for d in depts:
+                self.dept_combo.addItem(f"{d.name} ({d.code})", d.id)
+
+            groups = AcademicRepository.get_groups(db)
+            self.group_combo.clear()
+            self.group_combo.addItem("-- Any / General --", None)
+            for g in groups:
+                self.group_combo.addItem(g.name, g.id)
+
+            teachers = (
+                db.query(Teacher)
+                .filter(Teacher.status == "active", Teacher.is_deleted == False)
+                .order_by(Teacher.full_name)
+                .all()
+            )
             self.teacher_combo.clear()
             self.teacher_combo.addItem("-- None (Unassigned) --", None)
             for t in teachers:
@@ -145,16 +215,24 @@ class SubjectFormDialog(QDialog):
                 if sub:
                     self.name_edit.setText(sub.name)
                     self.code_edit.setText(sub.code)
+                    self.credit_spin.setValue(float(sub.credit_hours or 1.0))
                     self.full_spin.setValue(sub.full_marks)
                     self.pass_spin.setValue(sub.pass_marks)
                     self.theory_spin.setValue(sub.theory_marks)
                     self.prac_spin.setValue(sub.practical_marks)
+                    self.desc_edit.setText(sub.description or "")
                     idx_type = self.type_combo.findText(sub.subject_type)
                     if idx_type >= 0:
                         self.type_combo.setCurrentIndex(idx_type)
                     idx_c = self.class_combo.findData(sub.class_id)
                     if idx_c >= 0:
                         self.class_combo.setCurrentIndex(idx_c)
+                    idx_d = self.dept_combo.findData(sub.department_id)
+                    if idx_d >= 0:
+                        self.dept_combo.setCurrentIndex(idx_d)
+                    idx_g = self.group_combo.findData(sub.group_id)
+                    if idx_g >= 0:
+                        self.group_combo.setCurrentIndex(idx_g)
                     idx_t = self.teacher_combo.findData(sub.teacher_id)
                     if idx_t >= 0:
                         self.teacher_combo.setCurrentIndex(idx_t)
@@ -184,9 +262,10 @@ class SubjectFormDialog(QDialog):
 
         if theory + prac != full:
             reply = QMessageBox.question(
-                self, "Mark Distribution Notice",
+                self,
+                "Mark Distribution Notice",
                 f"Theory ({theory}) + Practical ({prac}) = {theory + prac}, which does not match Full Marks ({full}).\nAuto-adjust theory marks to {full - prac}?",
-                QMessageBox.Yes | QMessageBox.No
+                QMessageBox.Yes | QMessageBox.No,
             )
             if reply == QMessageBox.Yes:
                 theory = full - prac
@@ -194,17 +273,22 @@ class SubjectFormDialog(QDialog):
             else:
                 return
 
+        sub_type = self.type_combo.currentText()
         data = {
             "name": name,
             "code": code,
-            "subject_type": self.type_combo.currentText(),
-            "is_optional": self.type_combo.currentText() == "Optional",
+            "subject_type": sub_type,
+            "is_optional": sub_type in ("Optional", "Elective"),
             "full_marks": full,
             "pass_marks": pass_m,
             "theory_marks": theory,
             "practical_marks": prac,
             "class_id": class_id,
-            "teacher_id": self.teacher_combo.currentData()
+            "teacher_id": self.teacher_combo.currentData(),
+            "department_id": self.dept_combo.currentData(),
+            "group_id": self.group_combo.currentData(),
+            "credit_hours": self.credit_spin.value(),
+            "description": self.desc_edit.text().strip() or None,
         }
 
         db: Session = SessionLocal()

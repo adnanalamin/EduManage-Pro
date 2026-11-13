@@ -49,7 +49,10 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("reports", "HR Analytics & Reports", ["VIEW", "PRINT", "EXPORT"]),
     ],
     "ACADEMICS": [
-        ("structure", "Academic Years, Classes, Sections & Subjects", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("structure", "Academic Years, Classes, Sections, Groups, Shifts & Rooms", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("curriculum", "Departments, Subjects, Optional Subjects & Teacher Assignments", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("calendar", "Academic Calendar & Institutional Events", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT"]),
+        ("movements", "Promotions, Bulk Promotions & Class/Section Transfers", ["VIEW", "CREATE", "APPROVE", "MANAGE"]),
     ],
     "ATTENDANCE": [
         ("register", "Student & Faculty Attendance Register", ["VIEW", "CREATE", "EDIT", "PRINT", "EXPORT"]),
@@ -189,6 +192,8 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "dashboard.overview.VIEW",
                     "students.directory.VIEW",
                     "academics.structure.VIEW",
+                    "academics.curriculum.VIEW",
+                    "academics.calendar.VIEW",
                     "attendance.register.",
                     "exams.schedules.VIEW",
                     "exams.marks.VIEW",

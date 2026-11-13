@@ -540,6 +540,7 @@ class StudentService:
                 target_academic_year_id=to_academic_year_id,
                 remarks=remarks,
                 target_section_id=to_section_id,
+                promoted_by=actor,
             )
             StudentService._log(
                 db,
@@ -1101,11 +1102,27 @@ class StudentService:
                 "timestamp": datetime.combine(prom.promoted_date, datetime.min.time()),
                 "category": "Promotion",
                 "title": (
-                    f"Promoted: {prom.from_class.name if prom.from_class else '-'} "
+                    f"{prom.promotion_type or 'Promoted'}: "
+                    f"{prom.from_class.name if prom.from_class else '-'} "
                     f"-> {prom.to_class.name if prom.to_class else '-'}"
                 ),
                 "details": prom.remarks or "Academic promotion",
-                "actor": "system",
+                "actor": prom.promoted_by or "system",
+            })
+
+        for xfer in student.transfer_history:
+            events.append({
+                "timestamp": datetime.combine(xfer.effective_date, datetime.min.time()),
+                "category": "Academic Transfer",
+                "title": (
+                    f"{xfer.transfer_type.replace('_', ' ').title()}: "
+                    f"{xfer.from_class.name if xfer.from_class else '-'} "
+                    f"({xfer.from_section.name if xfer.from_section else '-'}) -> "
+                    f"{xfer.to_class.name if xfer.to_class else '-'} "
+                    f"({xfer.to_section.name if xfer.to_section else '-'})"
+                ),
+                "details": xfer.reason or "Internal class/section transfer",
+                "actor": xfer.transferred_by or "system",
             })
 
         for doc in student.documents:

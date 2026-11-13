@@ -58,7 +58,7 @@ class AppSettings(BaseModel):
     DB_MAX_OVERFLOW: int = int(os.getenv("EDUMANAGE_DB_MAX_OVERFLOW", "20"))
     DB_POOL_TIMEOUT: int = int(os.getenv("EDUMANAGE_DB_POOL_TIMEOUT", "30"))
     DB_ECHO: bool = os.getenv("EDUMANAGE_DB_ECHO", "false").strip().lower() in ("1", "true", "yes")
-    SCHEMA_VERSION: int = 5
+    SCHEMA_VERSION: int = 6
 
     # Security
     BCRYPT_ROUNDS: int = 12

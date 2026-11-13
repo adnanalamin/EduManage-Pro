@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -54,6 +54,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "HR Management upgrade: Teacher & Staff attendance, qualifications, work experience, "
             "subject assignments, employment contracts, leave requests & approvals, document vault, "
             "salary history, performance evaluations, lifecycle events, and emergency contacts"
+        ),
+    },
+    {
+        "version": 6,
+        "description": (
+            "Academic Management upgrade: AcademicGroups, AcademicShifts, AcademicRooms, "
+            "StudentSubjectEnrollments, StudentTransferHistory, historical promotion metadata, "
+            "and AcademicYear-scoped calendar events"
         ),
     },
 ]

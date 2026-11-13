@@ -377,21 +377,43 @@ class StudentRepository:
         target_academic_year_id: int,
         remarks: str = "Year-end batch promotion",
         target_section_id: Optional[int] = None,
+        promoted_by: str = "admin",
+        promotion_type: str = "Bulk Promoted",
     ) -> int:
         promoted_count = 0
-        students = db.query(Student).filter(Student.id.in_(student_ids)).all()
+        students = (
+            db.query(Student)
+            .filter(Student.id.in_(student_ids))
+            .order_by(Student.roll_number.asc(), Student.id.asc())
+            .all()
+        )
+        eff_date = date.today()
+        target_cls = db.query(SchoolClass).filter(SchoolClass.id == target_class_id).first()
+        target_sec = (
+            db.query(Section).filter(Section.id == target_section_id).first()
+            if target_section_id is not None
+            else None
+        )
+
         for stu in students:
             history = StudentPromotionHistory(
                 student_id=stu.id,
                 from_class_id=stu.class_id,
                 to_class_id=target_class_id,
+                from_section_id=stu.section_id,
+                to_section_id=target_section_id,
                 from_academic_year_id=stu.academic_year_id,
                 to_academic_year_id=target_academic_year_id,
+                from_roll_number=stu.roll_number,
+                to_roll_number=stu.roll_number,
+                promotion_type=promotion_type,
+                promoted_date=eff_date,
                 remarks=remarks,
+                promoted_by=promoted_by,
             )
             db.add(history)
 
-            # Close out current academic history row if open
+            # Close out current academic history row non-destructively without altering prior class/year/roll
             prev_acad = (
                 db.query(StudentAcademicHistory)
                 .filter(
@@ -405,14 +427,36 @@ class StudentRepository:
             )
             if prev_acad:
                 prev_acad.result_status = "Promoted"
-                prev_acad.end_date = date.today()
+                prev_acad.end_date = eff_date
                 prev_acad.remarks = remarks
+            else:
+                db.add(
+                    StudentAcademicHistory(
+                        student_id=stu.id,
+                        academic_year_id=stu.academic_year_id,
+                        class_id=stu.class_id,
+                        section_id=stu.section_id,
+                        roll_number=stu.roll_number,
+                        group=stu.group,
+                        shift=stu.shift,
+                        result_status="Promoted",
+                        start_date=stu.admission_date or eff_date,
+                        end_date=eff_date,
+                        remarks=remarks,
+                    )
+                )
 
             # Update student record
             stu.class_id = target_class_id
             if target_section_id is not None:
                 stu.section_id = target_section_id
             stu.academic_year_id = target_academic_year_id
+            if target_sec:
+                stu.group = target_sec.group
+                stu.shift = target_sec.shift
+            elif target_cls:
+                stu.group = target_cls.group
+                stu.shift = target_cls.shift
 
             # Record new academic year enrollment entry
             db.add(
@@ -425,7 +469,7 @@ class StudentRepository:
                     group=stu.group,
                     shift=stu.shift,
                     result_status="Enrolled",
-                    start_date=date.today(),
+                    start_date=eff_date,
                     remarks=remarks,
                 )
             )
