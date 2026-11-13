@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.accounting import AccountCategory, AccountTransaction
 from app.repositories.accounting_repository import AccountingRepository
 from app.models.activity import ActivityLog
+from app.services.database_service import DatabaseService
 
 
 class AccountingService:
@@ -107,7 +108,7 @@ class AccountingService:
 
         # Audit log
         db.add(ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, actor_username),
             username=actor_username,
             action="ACCOUNTING_VOUCHER_CREATED",
             module="ACCOUNTING",

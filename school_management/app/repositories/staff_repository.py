@@ -50,7 +50,7 @@ class StaffRepository:
         page: int = 1,
         per_page: int = 25
     ) -> Tuple[List[Teacher], int]:
-        query = db.query(Teacher).options(joinedload(Teacher.department))
+        query = db.query(Teacher).options(joinedload(Teacher.department)).filter(Teacher.is_deleted == False)
 
         if search_query and search_query.strip():
             term = f"%{search_query.strip()}%"
@@ -108,7 +108,7 @@ class StaffRepository:
         page: int = 1,
         per_page: int = 25
     ) -> Tuple[List[Staff], int]:
-        query = db.query(Staff).options(joinedload(Staff.department))
+        query = db.query(Staff).options(joinedload(Staff.department)).filter(Staff.is_deleted == False)
 
         if search_query and search_query.strip():
             term = f"%{search_query.strip()}%"
@@ -153,11 +153,17 @@ class StaffRepository:
     # --- Aggregates ---
     @staticmethod
     def get_overview_statistics(db: Session) -> Dict[str, Any]:
-        teacher_count = db.query(Teacher).count()
-        active_teachers = db.query(Teacher).filter(Teacher.status == "active").count()
-        staff_count = db.query(Staff).count()
-        active_staff = db.query(Staff).filter(Staff.status == "active").count()
-        total_payroll = (db.query(func.sum(Teacher.salary)).scalar() or 0) + (db.query(func.sum(Staff.salary)).scalar() or 0)
+        teacher_base = db.query(Teacher).filter(Teacher.is_deleted == False)
+        staff_base = db.query(Staff).filter(Staff.is_deleted == False)
+        teacher_count = teacher_base.count()
+        active_teachers = teacher_base.filter(Teacher.status == "active").count()
+        staff_count = staff_base.count()
+        active_staff = staff_base.filter(Staff.status == "active").count()
+        total_payroll = (
+            db.query(func.sum(Teacher.salary)).filter(Teacher.is_deleted == False).scalar() or 0
+        ) + (
+            db.query(func.sum(Staff.salary)).filter(Staff.is_deleted == False).scalar() or 0
+        )
 
         return {
             "total_teachers": teacher_count,

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.repositories.academic_repository import AcademicRepository
 from app.models.academic import AcademicYear, SchoolClass, Section, Subject
 from app.models.activity import ActivityLog
+from app.services.database_service import DatabaseService
 from app.config.logging_config import app_logger, security_logger
 
 
@@ -33,7 +34,7 @@ class AcademicService:
         
         # Log activity
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="CREATE_CLASS",
             module="ACADEMICS",
@@ -52,7 +53,7 @@ class AcademicService:
             return None, "Class not found."
         
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="UPDATE_CLASS",
             module="ACADEMICS",
@@ -75,7 +76,7 @@ class AcademicService:
 
         sec = AcademicRepository.create_section(db, section_data)
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="CREATE_SECTION",
             module="ACADEMICS",
@@ -92,7 +93,7 @@ class AcademicService:
         if not sec:
             return None, "Section not found."
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="UPDATE_SECTION",
             module="ACADEMICS",
@@ -130,7 +131,7 @@ class AcademicService:
 
         sub = AcademicRepository.create_subject(db, subject_data)
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="CREATE_SUBJECT",
             module="ACADEMICS",
@@ -147,7 +148,7 @@ class AcademicService:
         if not sub:
             return None, "Subject not found."
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="UPDATE_SUBJECT",
             module="ACADEMICS",

@@ -13,3 +13,8 @@ pyinstaller>=6.4.0,<7.0.0
 cryptography>=42.0.0
 python-dotenv>=1.0.0
 qtawesome>=1.3.1
+alembic>=1.13.0,<2.0.0
+qrcode[pil]>=7.4.2,<9.0.0
+# Optional for LAN/Enterprise PostgreSQL Edition:
+# psycopg[binary]>=3.1.0,<4.0.0
+

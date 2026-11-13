@@ -20,7 +20,7 @@ class AccountingRepository:
         trans_type: Optional[str] = None,
         active_only: bool = True
     ) -> List[AccountCategory]:
-        query = db.query(AccountCategory)
+        query = db.query(AccountCategory).filter(AccountCategory.is_deleted == False)
         if trans_type:
             query = query.filter(AccountCategory.type == trans_type)
         if active_only:
@@ -95,7 +95,9 @@ class AccountingRepository:
         limit: int = 100,
         offset: int = 0
     ) -> Tuple[List[AccountTransaction], int]:
-        query = db.query(AccountTransaction).options(joinedload(AccountTransaction.category))
+        query = db.query(AccountTransaction).options(
+            joinedload(AccountTransaction.category)
+        ).filter(AccountTransaction.is_deleted == False)
 
         if trans_type:
             query = query.filter(AccountTransaction.type == trans_type)
@@ -191,7 +193,10 @@ class AccountingRepository:
         query = db.query(
             AccountTransaction.type,
             func.coalesce(func.sum(AccountTransaction.amount), 0.0)
-        ).filter(AccountTransaction.status == "Approved")
+        ).filter(
+            AccountTransaction.status == "Approved",
+            AccountTransaction.is_deleted == False,
+        )
 
         if start_date:
             query = query.filter(AccountTransaction.transaction_date >= start_date)
@@ -207,12 +212,14 @@ class AccountingRepository:
         cash_in = db.query(func.coalesce(func.sum(AccountTransaction.amount), 0.0)).filter(
             AccountTransaction.type == "Income",
             AccountTransaction.payment_method == "Cash",
-            AccountTransaction.status == "Approved"
+            AccountTransaction.status == "Approved",
+            AccountTransaction.is_deleted == False,
         ).scalar() or 0.0
         cash_out = db.query(func.coalesce(func.sum(AccountTransaction.amount), 0.0)).filter(
             AccountTransaction.type == "Expense",
             AccountTransaction.payment_method == "Cash",
-            AccountTransaction.status == "Approved"
+            AccountTransaction.status == "Approved",
+            AccountTransaction.is_deleted == False,
         ).scalar() or 0.0
         cash_in_hand = float(cash_in - cash_out)
 

@@ -10,13 +10,17 @@ from sqlalchemy import func, or_, and_
 from app.models.fee import FeeCategory, FeeStructure, StudentFee, FeePayment
 from app.models.student import Student
 from app.models.academic import SchoolClass, AcademicYear
+from app.services.database_service import DatabaseService
 
 
 class FeeRepository:
     # ==================== CATEGORIES & STRUCTURES ====================
     @staticmethod
     def get_categories(db: Session) -> List[FeeCategory]:
-        return db.query(FeeCategory).filter(FeeCategory.is_active == True).order_by(FeeCategory.name.asc()).all()
+        return db.query(FeeCategory).filter(
+            FeeCategory.is_active == True,
+            FeeCategory.is_deleted == False,
+        ).order_by(FeeCategory.name.asc()).all()
 
     @staticmethod
     def create_category(db: Session, data: dict) -> FeeCategory:
@@ -68,7 +72,8 @@ class FeeRepository:
 
         students = db.query(Student).filter(
             Student.class_id == class_id,
-            Student.status == "active"
+            Student.status == "active",
+            Student.is_deleted == False,
         ).all()
 
         assigned_count = 0
@@ -113,7 +118,7 @@ class FeeRepository:
         query = db.query(StudentFee).options(
             joinedload(StudentFee.student),
             joinedload(StudentFee.fee_structure).joinedload(FeeStructure.category)
-        )
+        ).filter(StudentFee.is_deleted == False)
 
         if class_id:
             query = query.join(StudentFee.student).filter(Student.class_id == class_id)
@@ -145,9 +150,25 @@ class FeeRepository:
     # ==================== PAYMENTS ====================
     @staticmethod
     def record_payment(db: Session, payment_data: dict) -> Tuple[FeePayment, StudentFee]:
-        fee = db.query(StudentFee).filter(StudentFee.id == payment_data["student_fee_id"]).first()
+        fee = DatabaseService.lock_for_update(
+            db.query(StudentFee).filter(
+                StudentFee.id == payment_data["student_fee_id"],
+                StudentFee.is_deleted == False,
+            ),
+            db,
+        ).first()
         if not fee:
             raise ValueError("Student fee invoice not found.")
+
+        existing_idem = DatabaseService.prevent_duplicate_payment(
+            db,
+            student_fee_id=fee.id,
+            receipt_no=payment_data.get("receipt_no"),
+            idempotency_key=payment_data.get("idempotency_key"),
+            transaction_id=payment_data.get("transaction_id"),
+        )
+        if existing_idem:
+            return existing_idem, fee
 
         amount = float(payment_data["amount_paid"])
         if amount <= 0:
@@ -182,7 +203,7 @@ class FeeRepository:
         query = db.query(FeePayment).options(
             joinedload(FeePayment.student),
             joinedload(FeePayment.student_fee).joinedload(StudentFee.fee_structure)
-        )
+        ).filter(FeePayment.is_deleted == False)
         if search:
             term = f"%{search}%"
             query = query.join(FeePayment.student).filter(
@@ -205,7 +226,7 @@ class FeeRepository:
             func.coalesce(func.sum(StudentFee.discount_amount), 0.0),
             func.coalesce(func.sum(StudentFee.paid_amount), 0.0),
             func.coalesce(func.sum(StudentFee.due_amount), 0.0)
-        )
+        ).filter(StudentFee.is_deleted == False)
         if academic_year_id:
             query = query.filter(StudentFee.academic_year_id == academic_year_id)
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.repositories.attendance_repository import AttendanceRepository
 from app.models.activity import ActivityLog
 from app.models.academic import SchoolClass, Section
+from app.services.database_service import DatabaseService
 from app.config.logging_config import app_logger
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -36,7 +37,7 @@ class AttendanceService:
         cls_name = cls_obj.name if cls_obj else f"Class {class_id}"
 
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="ATTENDANCE_MARKED",
             module="ATTENDANCE",
@@ -65,7 +66,7 @@ class AttendanceService:
         absent_count = sum(1 for r in records if r.get("status") == "Absent")
 
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="TEACHER_ATTENDANCE_MARKED",
             module="ATTENDANCE",

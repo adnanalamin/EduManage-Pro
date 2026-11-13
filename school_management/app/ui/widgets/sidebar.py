@@ -112,3 +112,11 @@ class SidebarWidget(QWidget):
                 btn.setStyleSheet("background-color: #2563eb; color: #ffffff; font-weight: 600;")
             else:
                 btn.setStyleSheet("background-color: transparent; color: #94a3b8;")
+
+    def apply_permissions(self):
+        """Show/hide navigation modules based on authenticated user's RBAC permissions."""
+        from app.security.session import session as app_session
+
+        for key, btn in self.buttons.items():
+            btn.setVisible(app_session.can_access_sidebar_module(key))
+

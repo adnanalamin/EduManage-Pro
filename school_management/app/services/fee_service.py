@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.repositories.fee_repository import FeeRepository
 from app.models.fee import FeeCategory, FeePayment, StudentFee, FeeStructure
 from app.models.activity import ActivityLog
+from app.services.database_service import DatabaseService
 from app.config.logging_config import app_logger
 
 
@@ -27,10 +28,20 @@ class FeeService:
         payment_method: str = "Cash",
         transaction_id: Optional[str] = None,
         remarks: Optional[str] = None,
-        current_user: str = "admin"
+        current_user: str = "admin",
+        idempotency_key: Optional[str] = None,
     ) -> Tuple[Optional[FeePayment], str]:
+        if idempotency_key:
+            existing = (
+                db.query(FeePayment)
+                .filter(FeePayment.idempotency_key == idempotency_key)
+                .first()
+            )
+            if existing:
+                return existing, "Payment already recorded (idempotent replay)."
+
         fee = FeeRepository.get_student_fee_by_id(db, student_fee_id)
-        if not fee:
+        if not fee or getattr(fee, "is_deleted", False):
             return None, "Fee invoice not found."
 
         if amount <= 0:
@@ -42,6 +53,7 @@ class FeeService:
 
         payment_data = {
             "receipt_no": receipt_no,
+            "idempotency_key": idempotency_key,
             "student_fee_id": student_fee_id,
             "student_id": fee.student_id,
             "amount_paid": amount,
@@ -57,7 +69,7 @@ class FeeService:
 
             # Audit log
             log = ActivityLog(
-                user_id=1,
+                user_id=DatabaseService.resolve_user_id(db, current_user),
                 username=current_user,
                 action="FEE_COLLECTION",
                 module="FEES",
@@ -95,7 +107,7 @@ class FeeService:
         fee.status = "Paid" if fee.due_amount <= 0.01 else "Partial" if fee.paid_amount > 0 else "Unpaid"
 
         log = ActivityLog(
-            user_id=1,
+            user_id=DatabaseService.resolve_user_id(db, current_user),
             username=current_user,
             action="FEE_DISCOUNT_APPLIED",
             module="FEES",
