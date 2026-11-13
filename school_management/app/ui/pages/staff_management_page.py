@@ -6,13 +6,15 @@ Non-teaching employee directory with position filters, payroll overview, and bad
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QMessageBox
+    QMessageBox, QFileDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from app.database.connection import SessionLocal
-from app.models.staff import Staff, Department
+from app.models.staff import Staff, Department, STAFF_ROLE_CATALOG
 from app.repositories.staff_repository import StaffRepository
+from app.services.staff_service import StaffService
+from app.ui.dialogs.hr_profile_dialog import HRProfileDialog
 from app.ui.dialogs.staff_form_dialog import StaffFormDialog
 from app.ui.dialogs.teacher_id_card_dialog import TeacherIDCardDialog
 
@@ -49,7 +51,11 @@ class StaffManagementPage(QWidget):
         btn_add = QPushButton("➕ Register Staff Member")
         btn_add.setStyleSheet("background-color: #6366f1; color: white; padding: 8px 16px; font-weight: bold; border-radius: 6px;")
         btn_add.clicked.connect(self._open_add_dialog)
+        btn_export = QPushButton("📤 Export Excel (.xlsx)")
+        btn_export.setStyleSheet("background-color: #0891b2; color: white; padding: 8px 14px; font-weight: bold; border-radius: 6px;")
+        btn_export.clicked.connect(self._export_excel)
         header_row.addWidget(btn_add)
+        header_row.addWidget(btn_export)
         main_layout.addLayout(header_row)
 
         # KPI Summary Cards
@@ -77,10 +83,7 @@ class StaffManagementPage(QWidget):
 
         self.filter_position = QComboBox()
         self.filter_position.addItem("All Positions", None)
-        self.filter_position.addItems([
-            "Accountant", "Receptionist", "Librarian", "Office Assistant",
-            "IT / Lab Technician", "Security Supervisor", "Security Guard"
-        ])
+        self.filter_position.addItems(STAFF_ROLE_CATALOG)
         self.filter_position.currentIndexChanged.connect(self.refresh_roster)
 
         self.filter_dept = QComboBox()
@@ -175,6 +178,10 @@ class StaffManagementPage(QWidget):
                 act_layout.setContentsMargins(4, 2, 4, 2)
                 act_layout.setSpacing(4)
 
+                btn_hr = QPushButton("📋")
+                btn_hr.setToolTip("Open 360° HR Profile & Timeline")
+                btn_hr.clicked.connect(lambda checked, s_id=s.id: self._open_hr_profile(s_id))
+
                 btn_badge = QPushButton("🪪")
                 btn_badge.setToolTip("Print Staff Badge")
                 btn_badge.clicked.connect(lambda checked, s_id=s.id: self._open_badge(s_id))
@@ -183,6 +190,7 @@ class StaffManagementPage(QWidget):
                 btn_edit.setToolTip("Edit Profile")
                 btn_edit.clicked.connect(lambda checked, s_id=s.id: self._open_edit_dialog(s_id))
 
+                act_layout.addWidget(btn_hr)
                 act_layout.addWidget(btn_badge)
                 act_layout.addWidget(btn_edit)
                 self.table.setCellWidget(i, 6, act_widget)
@@ -218,3 +226,20 @@ class StaffManagementPage(QWidget):
     def _open_badge(self, staff_pk: int):
         diag = TeacherIDCardDialog(self, entity_id=staff_pk, is_teacher=False)
         diag.exec()
+
+    def _open_hr_profile(self, staff_pk: int):
+        diag = HRProfileDialog(self, employee_type="staff", employee_pk=staff_pk)
+        diag.exec()
+        self.refresh_roster()
+
+    def _export_excel(self):
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Staff Directory", "Staff_Directory.xlsx", "Excel Files (*.xlsx)"
+        )
+        if file_path:
+            db = SessionLocal()
+            try:
+                StaffService.export_staff_to_excel(db, file_path)
+                QMessageBox.information(self, "Export Success", f"Staff roster exported to:\n{file_path}")
+            finally:
+                db.close()

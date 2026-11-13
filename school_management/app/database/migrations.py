@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -46,6 +46,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "Student CRM upgrade: Digital ID/QR fields, multiple guardian links, family links, "
             "admission/academic/previous-school/status histories, document vault, medical profile, "
             "emergency contacts, notes, tags, custom fields, and lifecycle workflow fields"
+        ),
+    },
+    {
+        "version": 5,
+        "description": (
+            "HR Management upgrade: Teacher & Staff attendance, qualifications, work experience, "
+            "subject assignments, employment contracts, leave requests & approvals, document vault, "
+            "salary history, performance evaluations, lifecycle events, and emergency contacts"
         ),
     },
 ]

@@ -22,6 +22,7 @@ from app.ui.pages.dashboard_page import DashboardPage
 from app.ui.pages.exam_management_page import ExamManagementPage
 from app.ui.pages.fees_management_page import FeesManagementPage
 from app.ui.pages.hostel_page import HostelPage
+from app.ui.pages.hr_management_page import HRManagementPage
 from app.ui.pages.library_page import LibraryPage
 from app.ui.pages.notice_page import NoticePage
 from app.ui.pages.reports_page import ReportsPage
@@ -144,6 +145,9 @@ class MainWindow(QMainWindow):
         self.settings_page = SecuritySettingsPage(self)
         self.stack.addWidget(self.settings_page)
 
+        self.hr_page = HRManagementPage(self)
+        self.stack.addWidget(self.hr_page)
+
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
@@ -164,6 +168,7 @@ class MainWindow(QMainWindow):
             "reports": 14,
             "certificates": 15,
             "settings": 16,
+            "hr": 17,
         }
 
         right_layout.addWidget(self.stack)
@@ -243,6 +248,8 @@ class MainWindow(QMainWindow):
                 self.certificate_page.refresh_all()
             elif module_key == "settings":
                 self.settings_page.refresh_all()
+            elif module_key == "hr":
+                self.hr_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme

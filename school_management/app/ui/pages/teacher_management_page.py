@@ -11,9 +11,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from app.database.connection import SessionLocal
-from app.models.staff import Teacher, Department
+from app.models.staff import Teacher, Department, EmployeeStatus
 from app.repositories.staff_repository import StaffRepository
+from app.services.hr_service import HRSecurityGuard
 from app.services.staff_service import StaffService
+from app.ui.dialogs.hr_profile_dialog import HRProfileDialog
 from app.ui.dialogs.teacher_form_dialog import TeacherFormDialog
 from app.ui.dialogs.teacher_id_card_dialog import TeacherIDCardDialog
 
@@ -92,7 +94,8 @@ class TeacherManagementPage(QWidget):
 
         self.filter_status = QComboBox()
         self.filter_status.addItem("All Statuses", None)
-        self.filter_status.addItems(["active", "on_leave", "resigned", "retired"])
+        for st in EmployeeStatus.ALL:
+            self.filter_status.addItem(EmployeeStatus.LABELS.get(st, st), st)
         self.filter_status.currentIndexChanged.connect(self.refresh_roster)
 
         filter_layout.addWidget(self.search_box, stretch=2)
@@ -156,12 +159,19 @@ class TeacherManagementPage(QWidget):
             db.close()
 
     def refresh_roster(self):
+        can_salary = HRSecurityGuard.can_view_salary(allow_when_no_session=True)
+        self.kpi_payroll.setVisible(can_salary)
+        self.table.setColumnHidden(6, not can_salary)
+
         db = SessionLocal()
         try:
             stats = StaffRepository.get_overview_statistics(db)
             self.kpi_total.value_lbl.setText(str(stats["total_teachers"]))
             self.kpi_active.value_lbl.setText(str(stats["active_teachers"]))
-            self.kpi_payroll.value_lbl.setText(f"৳ {stats['monthly_payroll']:,}")
+            if can_salary:
+                self.kpi_payroll.value_lbl.setText(f"৳ {stats['monthly_payroll']:,}")
+            else:
+                self.kpi_payroll.value_lbl.setText("Restricted")
 
             search = self.search_box.text()
             dept_id = self.filter_dept.currentData()
@@ -184,13 +194,17 @@ class TeacherManagementPage(QWidget):
                 self.table.setItem(i, 3, QTableWidgetItem(t.primary_subject))
                 self.table.setItem(i, 4, QTableWidgetItem(t.designation))
                 self.table.setItem(i, 5, QTableWidgetItem(f"{t.phone}\n{t.email}"))
-                self.table.setItem(i, 6, QTableWidgetItem(f"৳ {t.salary:,}"))
+                self.table.setItem(i, 6, QTableWidgetItem(f"৳ {t.salary:,}" if can_salary else "[RESTRICTED]"))
 
                 # Actions
                 act_widget = QWidget()
                 act_layout = QHBoxLayout(act_widget)
                 act_layout.setContentsMargins(4, 2, 4, 2)
                 act_layout.setSpacing(4)
+
+                btn_hr = QPushButton("📋")
+                btn_hr.setToolTip("Open 360° HR Profile & Timeline")
+                btn_hr.clicked.connect(lambda checked, t_id=t.id: self._open_hr_profile(t_id))
 
                 btn_badge = QPushButton("🪪")
                 btn_badge.setToolTip("View & Print Faculty Badge")
@@ -200,6 +214,7 @@ class TeacherManagementPage(QWidget):
                 btn_edit.setToolTip("Edit Teacher Profile")
                 btn_edit.clicked.connect(lambda checked, t_id=t.id: self._open_edit_dialog(t_id))
 
+                act_layout.addWidget(btn_hr)
                 act_layout.addWidget(btn_badge)
                 act_layout.addWidget(btn_edit)
                 self.table.setCellWidget(i, 7, act_widget)
@@ -235,6 +250,11 @@ class TeacherManagementPage(QWidget):
     def _open_badge(self, teacher_pk: int):
         diag = TeacherIDCardDialog(self, entity_id=teacher_pk, is_teacher=True)
         diag.exec()
+
+    def _open_hr_profile(self, teacher_pk: int):
+        diag = HRProfileDialog(self, employee_type="teacher", employee_pk=teacher_pk)
+        diag.exec()
+        self.refresh_roster()
 
     def _export_excel(self):
         file_path, _ = QFileDialog.getSaveFileName(

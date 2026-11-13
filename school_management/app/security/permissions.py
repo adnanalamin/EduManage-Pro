@@ -38,6 +38,16 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
     "STAFF": [
         ("directory", "Non-Teaching Staff Directory", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT"]),
     ],
+    "HR": [
+        ("directory", "HR Employee Directory & Profiles", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT"]),
+        ("contracts", "Employee Contracts & Lifecycle (Join/Promote/Transfer)", ["VIEW", "CREATE", "EDIT", "APPROVE", "MANAGE"]),
+        ("leave", "Leave Management & Approvals", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT"]),
+        ("attendance", "Employee Attendance Tracking", ["VIEW", "CREATE", "EDIT", "EXPORT"]),
+        ("documents", "Employee Documents & Credentials", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE"]),
+        ("evaluations", "Performance Evaluations", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT"]),
+        ("salary", "Confidential Compensation & Salary History", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT", "MANAGE"]),
+        ("reports", "HR Analytics & Reports", ["VIEW", "PRINT", "EXPORT"]),
+    ],
     "ACADEMICS": [
         ("structure", "Academic Years, Classes, Sections & Subjects", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
     ],
@@ -95,6 +105,7 @@ SIDEBAR_MODULE_PERMISSION_MAP: Dict[str, str] = {
     "students": "STUDENTS",
     "teachers": "TEACHERS",
     "staff": "STAFF",
+    "hr": "HR",
     "academics": "ACADEMICS",
     "attendance": "ATTENDANCE",
     "fees": "FEES",
@@ -187,6 +198,8 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "timetable.routines.VIEW",
                     "library.circulation.VIEW",
                     "notices.bulletins.VIEW",
+                    "hr.leave.VIEW",
+                    "hr.leave.CREATE",
                 )
             )
         ]
@@ -205,6 +218,11 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "reports.",
                     "inventory.stock.VIEW",
                     "notices.bulletins.VIEW",
+                    "hr.directory.VIEW",
+                    "hr.salary.VIEW",
+                    "hr.salary.EXPORT",
+                    "hr.reports.VIEW",
+                    "hr.reports.EXPORT",
                 )
             )
         ]
@@ -219,6 +237,12 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "dashboard.overview.VIEW",
                     "students.directory.VIEW",
                     "students.directory.CREATE",
+                    "teachers.directory.VIEW",
+                    "staff.directory.VIEW",
+                    "hr.directory.VIEW",
+                    "hr.attendance.VIEW",
+                    "hr.leave.VIEW",
+                    "hr.leave.CREATE",
                     "notices.bulletins.",
                     "certificates.credentials.VIEW",
                     "certificates.credentials.CREATE",

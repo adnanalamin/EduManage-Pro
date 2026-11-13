@@ -7,12 +7,13 @@ from datetime import date
 from typing import Optional
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
-    QDateEdit, QSpinBox, QPushButton, QFormLayout, QMessageBox, QTextEdit
+    QDateEdit, QSpinBox, QDoubleSpinBox, QPushButton, QFormLayout, QMessageBox
 )
 from PySide6.QtCore import Qt, QDate
 from app.database.connection import SessionLocal
-from app.models.staff import Staff, Department
+from app.models.staff import Staff, Department, EmployeeStatus, STAFF_ROLE_CATALOG
 from app.repositories.staff_repository import StaffRepository
+from app.services.hr_service import HRSecurityGuard
 from app.services.staff_service import StaffService
 
 
@@ -21,8 +22,10 @@ class StaffFormDialog(QDialog):
         super().__init__(parent)
         self.staff_pk = staff_id
         self.is_edit_mode = bool(staff_id)
+        self.can_view_salary = HRSecurityGuard.can_view_salary(allow_when_no_session=True)
+        self.can_manage_salary = HRSecurityGuard.can_manage_salary(allow_when_no_session=True)
         self.setWindowTitle("EduManage Pro — " + ("Edit Staff Member" if self.is_edit_mode else "Register Staff Member"))
-        self.setFixedSize(560, 480)
+        self.setFixedSize(580, 560)
 
         self._build_ui()
         self._load_departments()
@@ -35,7 +38,7 @@ class StaffFormDialog(QDialog):
         layout.setSpacing(12)
 
         form = QFormLayout()
-        form.setSpacing(10)
+        form.setSpacing(8)
 
         self.name_input = QLineEdit()
         self.name_bn_input = QLineEdit()
@@ -50,23 +53,20 @@ class StaffFormDialog(QDialog):
         self.email_input = QLineEdit()
 
         self.position_combo = QComboBox()
-        self.position_combo.addItems([
-            "Accountant",
-            "Receptionist",
-            "Librarian",
-            "Office Assistant",
-            "IT / Lab Technician",
-            "Security Supervisor",
-            "Security Guard",
-            "Transport Supervisor",
-            "Hostel Warden",
-            "Support Staff"
-        ])
+        self.position_combo.addItems(STAFF_ROLE_CATALOG)
 
         self.dept_combo = QComboBox()
 
         self.shift_combo = QComboBox()
         self.shift_combo.addItems(["Day", "Morning", "Night"])
+
+        self.exp_spin = QDoubleSpinBox()
+        self.exp_spin.setRange(0.0, 60.0)
+        self.exp_spin.setSingleStep(0.5)
+        self.exp_spin.setSuffix(" yrs")
+
+        self.emergency_name_input = QLineEdit()
+        self.emergency_phone_input = QLineEdit()
 
         self.salary_spin = QSpinBox()
         self.salary_spin.setRange(8000, 150000)
@@ -74,7 +74,7 @@ class StaffFormDialog(QDialog):
         self.salary_spin.setSuffix(" ৳")
 
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["active", "on_leave", "resigned"])
+        self.status_combo.addItems(EmployeeStatus.ALL)
 
         form.addRow("Staff Full Name*:", self.name_input)
         form.addRow("Name in Bangla:", self.name_bn_input)
@@ -85,8 +85,17 @@ class StaffFormDialog(QDialog):
         form.addRow("Position / Role*:", self.position_combo)
         form.addRow("Department*:", self.dept_combo)
         form.addRow("Duty Shift:", self.shift_combo)
+        form.addRow("Experience (Years):", self.exp_spin)
+        form.addRow("Emergency Contact Name:", self.emergency_name_input)
+        form.addRow("Emergency Contact Phone:", self.emergency_phone_input)
         form.addRow("Monthly Salary*:", self.salary_spin)
         form.addRow("Status:", self.status_combo)
+
+        show_sal = self.can_view_salary and self.can_manage_salary
+        sal_lbl = form.labelForField(self.salary_spin)
+        if sal_lbl:
+            sal_lbl.setVisible(show_sal)
+        self.salary_spin.setVisible(show_sal)
 
         layout.addLayout(form)
 
@@ -127,9 +136,14 @@ class StaffFormDialog(QDialog):
                 self.email_input.setText(s.email or "")
                 self.position_combo.setCurrentText(s.position)
                 idx = self.dept_combo.findData(s.department_id)
-                if idx >= 0: self.dept_combo.setCurrentIndex(idx)
+                if idx >= 0:
+                    self.dept_combo.setCurrentIndex(idx)
                 self.shift_combo.setCurrentText(s.shift)
-                self.salary_spin.setValue(s.salary)
+                self.exp_spin.setValue(float(s.experience_years or 0.0))
+                self.emergency_name_input.setText(s.emergency_contact_name or "")
+                self.emergency_phone_input.setText(s.emergency_contact_phone or "")
+                if self.can_view_salary:
+                    self.salary_spin.setValue(s.salary)
                 self.status_combo.setCurrentText(s.status)
         finally:
             db.close()
@@ -155,24 +169,26 @@ class StaffFormDialog(QDialog):
             "position": self.position_combo.currentText(),
             "department_id": self.dept_combo.currentData(),
             "shift": self.shift_combo.currentText(),
-            "salary": self.salary_spin.value(),
+            "experience_years": self.exp_spin.value(),
+            "emergency_contact_name": self.emergency_name_input.text().strip() or None,
+            "emergency_contact_phone": self.emergency_phone_input.text().strip() or None,
             "status": self.status_combo.currentText(),
         }
+        if self.can_view_salary and self.can_manage_salary:
+            payload["salary"] = self.salary_spin.value()
 
         db = SessionLocal()
         try:
             if self.is_edit_mode:
-                staff_obj = StaffRepository.get_staff_by_id(db, self.staff_pk)
-                if staff_obj:
-                    StaffRepository.update_staff(db, staff_obj, payload)
-                    QMessageBox.information(self, "Success", "Staff profile updated.")
-                    self.accept()
+                success, _, msg = StaffService.update_staff(db, self.staff_pk, payload)
             else:
                 success, _, msg = StaffService.add_staff(db, payload)
-                if success:
-                    QMessageBox.information(self, "Success", msg)
-                    self.accept()
-                else:
-                    QMessageBox.critical(self, "Error", msg)
+
+            if success:
+                QMessageBox.information(self, "Success", msg)
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", msg)
         finally:
             db.close()
+

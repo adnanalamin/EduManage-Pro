@@ -69,3 +69,29 @@ class TeacherAttendance(Base, TimestampMixin):
     def __repr__(self):
         return f"<TeacherAttendance(teacher_id={self.teacher_id}, date={self.date}, status='{self.status}')>"
 
+
+class StaffAttendance(Base, TimestampMixin):
+    __tablename__ = "staff_attendances"
+
+    staff_id = Column(Integer, ForeignKey("staff_members.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(Date, default=date.today, nullable=False, index=True)
+
+    # Status: 'Present', 'Absent', 'Late', 'Leave'
+    status = Column(String(20), default="Present", nullable=False)
+    check_in_time = Column(String(20), nullable=True)
+    check_out_time = Column(String(20), nullable=True)
+    remarks = Column(String(255), nullable=True)
+    marked_by = Column(String(80), default="admin", nullable=False)
+
+    staff = relationship("Staff", backref="attendances")
+
+    __table_args__ = (
+        UniqueConstraint("staff_id", "date", name="uq_staff_daily_attendance"),
+        Index("idx_staff_att_date", "date"),
+        Index("idx_staff_att_date_status", "date", "status"),
+    )
+
+    def __repr__(self):
+        return f"<StaffAttendance(staff_id={self.staff_id}, date={self.date}, status='{self.status}')>"
+
+

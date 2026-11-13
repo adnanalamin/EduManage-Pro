@@ -15,6 +15,7 @@ MODULES = [
     ("students", "Students", "🎓"),
     ("teachers", "Teachers", "👨‍🏫"),
     ("staff", "Staff", "💼"),
+    ("hr", "HR & Payroll", "👔"),
     ("academics", "Academics", "🏫"),
     ("attendance", "Attendance", "📅"),
     ("fees", "Fees & Billing", "💰"),

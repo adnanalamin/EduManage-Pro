@@ -41,8 +41,24 @@ from app.models.student import (
     StudentPromotionHistory,
     student_tag_assignments,
 )
-from app.models.staff import Department, Teacher, Staff
-from app.models.attendance import AttendanceStatus, StudentAttendance, TeacherAttendance
+from app.models.staff import (
+    EmployeeStatus,
+    STAFF_ROLE_CATALOG,
+    Department,
+    Teacher,
+    Staff,
+    EmployeeQualification,
+    EmployeeExperience,
+    TeacherSubjectAssignment,
+    EmployeeContract,
+    EmployeeLeaveRequest,
+    EmployeeDocument,
+    EmployeeSalaryHistory,
+    EmployeePerformanceEvaluation,
+    EmployeeLifecycleEvent,
+    EmployeeEmergencyContact,
+)
+from app.models.attendance import AttendanceStatus, StudentAttendance, TeacherAttendance, StaffAttendance
 from app.models.fee import FeeCategory, FeeStructure, StudentFee, FeePayment
 from app.models.accounting import AccountCategory, AccountTransaction
 from app.models.exam import ExamTerm, GradingScale, ExamSchedule, StudentMark, ExamResultSummary
@@ -90,12 +106,25 @@ __all__ = [
     "StudentStatusHistory",
     "StudentPromotionHistory",
     "student_tag_assignments",
+    "EmployeeStatus",
+    "STAFF_ROLE_CATALOG",
     "Department",
     "Teacher",
     "Staff",
+    "EmployeeQualification",
+    "EmployeeExperience",
+    "TeacherSubjectAssignment",
+    "EmployeeContract",
+    "EmployeeLeaveRequest",
+    "EmployeeDocument",
+    "EmployeeSalaryHistory",
+    "EmployeePerformanceEvaluation",
+    "EmployeeLifecycleEvent",
+    "EmployeeEmergencyContact",
     "AttendanceStatus",
     "StudentAttendance",
     "TeacherAttendance",
+    "StaffAttendance",
     "FeeCategory",
     "FeeStructure",
     "StudentFee",

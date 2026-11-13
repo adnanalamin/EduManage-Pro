@@ -1,12 +1,25 @@
 """
-EduManage Pro - Teacher & Staff Repository
-Data access layer for faculty members, administrative staff, and departments.
+EduManage Pro - Teacher, Staff & HR Repository
+Data access layer for faculty, non-teaching personnel, departments, HR attendance,
+leave queues, contracts, and unified employee searches.
 """
 
-from typing import List, Optional, Tuple, Dict, Any
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, desc, asc, func
-from app.models.staff import Teacher, Staff, Department
+
+from app.models.attendance import StaffAttendance, TeacherAttendance
+from app.models.staff import (
+    Department,
+    EmployeeContract,
+    EmployeeLeaveRequest,
+    EmployeePerformanceEvaluation,
+    Staff,
+    Teacher,
+    TeacherSubjectAssignment,
+)
 
 
 class StaffRepository:
@@ -38,7 +51,12 @@ class StaffRepository:
     # --- Teacher Operations ---
     @staticmethod
     def get_teacher_by_id(db: Session, teacher_pk: int) -> Optional[Teacher]:
-        return db.query(Teacher).options(joinedload(Teacher.department)).filter(Teacher.id == teacher_pk).first()
+        return (
+            db.query(Teacher)
+            .options(joinedload(Teacher.department))
+            .filter(Teacher.id == teacher_pk)
+            .first()
+        )
 
     @staticmethod
     def search_and_filter_teachers(
@@ -48,7 +66,7 @@ class StaffRepository:
         gender: Optional[str] = None,
         status: Optional[str] = None,
         page: int = 1,
-        per_page: int = 25
+        per_page: int = 25,
     ) -> Tuple[List[Teacher], int]:
         query = db.query(Teacher).options(joinedload(Teacher.department)).filter(Teacher.is_deleted == False)
 
@@ -61,7 +79,8 @@ class StaffRepository:
                     Teacher.employee_id.ilike(term),
                     Teacher.phone.ilike(term),
                     Teacher.email.ilike(term),
-                    Teacher.primary_subject.ilike(term)
+                    Teacher.primary_subject.ilike(term),
+                    Teacher.designation.ilike(term),
                 )
             )
 
@@ -73,7 +92,7 @@ class StaffRepository:
             query = query.filter(Teacher.status == status)
 
         total_count = query.count()
-        offset = (page - 1) * per_page
+        offset = max(0, (page - 1) * per_page)
         items = query.order_by(asc(Teacher.full_name)).offset(offset).limit(per_page).all()
         return items, total_count
 
@@ -96,7 +115,12 @@ class StaffRepository:
     # --- Staff Operations ---
     @staticmethod
     def get_staff_by_id(db: Session, staff_pk: int) -> Optional[Staff]:
-        return db.query(Staff).options(joinedload(Staff.department)).filter(Staff.id == staff_pk).first()
+        return (
+            db.query(Staff)
+            .options(joinedload(Staff.department))
+            .filter(Staff.id == staff_pk)
+            .first()
+        )
 
     @staticmethod
     def search_and_filter_staff(
@@ -106,7 +130,7 @@ class StaffRepository:
         position: Optional[str] = None,
         status: Optional[str] = None,
         page: int = 1,
-        per_page: int = 25
+        per_page: int = 25,
     ) -> Tuple[List[Staff], int]:
         query = db.query(Staff).options(joinedload(Staff.department)).filter(Staff.is_deleted == False)
 
@@ -118,7 +142,7 @@ class StaffRepository:
                     Staff.staff_id.ilike(term),
                     Staff.employee_id.ilike(term),
                     Staff.phone.ilike(term),
-                    Staff.position.ilike(term)
+                    Staff.position.ilike(term),
                 )
             )
 
@@ -130,7 +154,7 @@ class StaffRepository:
             query = query.filter(Staff.status == status)
 
         total_count = query.count()
-        offset = (page - 1) * per_page
+        offset = max(0, (page - 1) * per_page)
         items = query.order_by(asc(Staff.full_name)).offset(offset).limit(per_page).all()
         return items, total_count
 
@@ -150,6 +174,113 @@ class StaffRepository:
         db.refresh(staff_member)
         return staff_member
 
+    # --- Unified HR Queries ---
+    @staticmethod
+    def get_employee(db: Session, employee_type: str, employee_pk: int):
+        etype = (employee_type or "").strip().lower()
+        if etype == "teacher":
+            return StaffRepository.get_teacher_by_id(db, employee_pk)
+        if etype == "staff":
+            return StaffRepository.get_staff_by_id(db, employee_pk)
+        raise ValueError(f"Unsupported employee_type '{employee_type}'. Must be 'teacher' or 'staff'.")
+
+    @staticmethod
+    def list_leave_requests(
+        db: Session,
+        status: Optional[str] = None,
+        employee_type: Optional[str] = None,
+        teacher_id: Optional[int] = None,
+        staff_id: Optional[int] = None,
+    ) -> List[EmployeeLeaveRequest]:
+        query = db.query(EmployeeLeaveRequest).options(
+            joinedload(EmployeeLeaveRequest.teacher),
+            joinedload(EmployeeLeaveRequest.staff),
+        )
+        if status:
+            query = query.filter(EmployeeLeaveRequest.status == status)
+        if employee_type:
+            query = query.filter(EmployeeLeaveRequest.employee_type == employee_type.lower())
+        if teacher_id:
+            query = query.filter(EmployeeLeaveRequest.teacher_id == teacher_id)
+        if staff_id:
+            query = query.filter(EmployeeLeaveRequest.staff_id == staff_id)
+        return query.order_by(desc(EmployeeLeaveRequest.id)).all()
+
+    @staticmethod
+    def list_contracts(
+        db: Session,
+        status: Optional[str] = None,
+        expiring_within_days: Optional[int] = None,
+    ) -> List[EmployeeContract]:
+        query = db.query(EmployeeContract).options(
+            joinedload(EmployeeContract.teacher),
+            joinedload(EmployeeContract.staff),
+        )
+        if status:
+            query = query.filter(EmployeeContract.status == status)
+        if expiring_within_days is not None:
+            cutoff = date.today() + timedelta(days=expiring_within_days)
+            query = query.filter(
+                EmployeeContract.end_date.isnot(None),
+                EmployeeContract.end_date <= cutoff,
+            )
+        return query.order_by(desc(EmployeeContract.start_date)).all()
+
+    @staticmethod
+    def list_evaluations(
+        db: Session,
+        employee_type: Optional[str] = None,
+    ) -> List[EmployeePerformanceEvaluation]:
+        query = db.query(EmployeePerformanceEvaluation).options(
+            joinedload(EmployeePerformanceEvaluation.teacher),
+            joinedload(EmployeePerformanceEvaluation.staff),
+        )
+        if employee_type:
+            query = query.filter(EmployeePerformanceEvaluation.employee_type == employee_type.lower())
+        return query.order_by(desc(EmployeePerformanceEvaluation.review_date)).all()
+
+    @staticmethod
+    def save_staff_attendance(
+        db: Session,
+        records: List[Dict[str, Any]],
+        marked_by: str = "admin",
+    ) -> int:
+        saved = 0
+        for rec in records:
+            staff_id = rec["staff_id"]
+            att_date = rec["date"]
+            existing = (
+                db.query(StaffAttendance)
+                .filter(StaffAttendance.staff_id == staff_id, StaffAttendance.date == att_date)
+                .first()
+            )
+            if existing:
+                existing.status = rec.get("status", "Present")
+                existing.check_in_time = rec.get("check_in_time")
+                existing.check_out_time = rec.get("check_out_time")
+                existing.remarks = rec.get("remarks")
+                existing.marked_by = marked_by
+            else:
+                db.add(
+                    StaffAttendance(
+                        staff_id=staff_id,
+                        date=att_date,
+                        status=rec.get("status", "Present"),
+                        check_in_time=rec.get("check_in_time"),
+                        check_out_time=rec.get("check_out_time"),
+                        remarks=rec.get("remarks"),
+                        marked_by=marked_by,
+                    )
+                )
+            saved += 1
+        db.commit()
+        return saved
+
+    @staticmethod
+    def get_staff_attendance_by_date(db: Session, att_date: date) -> Dict[int, StaffAttendance]:
+        rows = db.query(StaffAttendance).filter(StaffAttendance.date == att_date).all()
+        return {r.staff_id: r for r in rows}
+
     # --- Aggregates ---
     @staticmethod
     def get_overview_statistics(db: Session) -> Dict[str, Any]:
@@ -159,6 +290,12 @@ class StaffRepository:
         active_teachers = teacher_base.filter(Teacher.status == "active").count()
         staff_count = staff_base.count()
         active_staff = staff_base.filter(Staff.status == "active").count()
+        pending_leaves = (
+            db.query(EmployeeLeaveRequest).filter(EmployeeLeaveRequest.status == "Pending").count()
+        )
+        active_contracts = (
+            db.query(EmployeeContract).filter(EmployeeContract.status == "Active").count()
+        )
         total_payroll = (
             db.query(func.sum(Teacher.salary)).filter(Teacher.is_deleted == False).scalar() or 0
         ) + (
@@ -170,5 +307,7 @@ class StaffRepository:
             "active_teachers": active_teachers,
             "total_staff": staff_count,
             "active_staff": active_staff,
-            "monthly_payroll": total_payroll
+            "pending_leaves": pending_leaves,
+            "active_contracts": active_contracts,
+            "monthly_payroll": total_payroll,
         }

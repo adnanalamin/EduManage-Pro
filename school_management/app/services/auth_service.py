@@ -111,6 +111,13 @@ class AuthService:
                 preset_codes = default_permission_codes_for_role(role.name, all_codes)
                 if preset_codes:
                     role.permissions = [perm_map[c] for c in preset_codes if c in perm_map]
+            elif role.is_system_role and not any(p.code.startswith("hr.") for p in role.permissions):
+                preset_codes = default_permission_codes_for_role(role.name, all_codes)
+                hr_codes = [c for c in preset_codes if c.startswith("hr.") and c in perm_map]
+                existing_codes = {p.code for p in role.permissions}
+                for hc in hr_codes:
+                    if hc not in existing_codes:
+                        role.permissions.append(perm_map[hc])
 
         db.commit()
         return added

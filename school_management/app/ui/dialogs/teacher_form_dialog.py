@@ -7,12 +7,13 @@ from datetime import date
 from typing import Optional
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
-    QDateEdit, QSpinBox, QPushButton, QFormLayout, QMessageBox, QTextEdit
+    QDateEdit, QSpinBox, QDoubleSpinBox, QPushButton, QFormLayout, QMessageBox
 )
 from PySide6.QtCore import Qt, QDate
 from app.database.connection import SessionLocal
-from app.models.staff import Teacher, Department
+from app.models.staff import Teacher, Department, EmployeeStatus
 from app.repositories.staff_repository import StaffRepository
+from app.services.hr_service import HRSecurityGuard
 from app.services.staff_service import StaffService
 
 
@@ -21,8 +22,10 @@ class TeacherFormDialog(QDialog):
         super().__init__(parent)
         self.teacher_pk = teacher_id
         self.is_edit_mode = bool(teacher_id)
+        self.can_view_salary = HRSecurityGuard.can_view_salary(allow_when_no_session=True)
+        self.can_manage_salary = HRSecurityGuard.can_manage_salary(allow_when_no_session=True)
         self.setWindowTitle("EduManage Pro — " + ("Edit Faculty Member" if self.is_edit_mode else "Register New Teacher"))
-        self.setFixedSize(600, 520)
+        self.setFixedSize(620, 620)
 
         self._build_ui()
         self._load_departments()
@@ -35,7 +38,7 @@ class TeacherFormDialog(QDialog):
         layout.setSpacing(12)
 
         form = QFormLayout()
-        form.setSpacing(10)
+        form.setSpacing(8)
 
         self.name_input = QLineEdit()
         self.name_bn_input = QLineEdit()
@@ -55,11 +58,19 @@ class TeacherFormDialog(QDialog):
         self.qual_input = QLineEdit()
         self.qual_input.setPlaceholderText("e.g. M.Sc. in Physics, B.Ed")
 
+        self.exp_spin = QDoubleSpinBox()
+        self.exp_spin.setRange(0.0, 60.0)
+        self.exp_spin.setSingleStep(0.5)
+        self.exp_spin.setSuffix(" yrs")
+
         self.designation_input = QLineEdit("Assistant Teacher")
         self.dept_combo = QComboBox()
 
         self.subject_input = QLineEdit()
         self.subject_input.setPlaceholderText("e.g. Physics, Mathematics, English")
+
+        self.emergency_name_input = QLineEdit()
+        self.emergency_phone_input = QLineEdit()
 
         self.salary_spin = QSpinBox()
         self.salary_spin.setRange(10000, 300000)
@@ -67,7 +78,7 @@ class TeacherFormDialog(QDialog):
         self.salary_spin.setSuffix(" ৳")
 
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["active", "on_leave", "resigned", "retired"])
+        self.status_combo.addItems(EmployeeStatus.ALL)
 
         form.addRow("Teacher Full Name*:", self.name_input)
         form.addRow("Name in Bangla:", self.name_bn_input)
@@ -77,11 +88,21 @@ class TeacherFormDialog(QDialog):
         form.addRow("Phone Number*:", self.phone_input)
         form.addRow("Email Address*:", self.email_input)
         form.addRow("Highest Qualification*:", self.qual_input)
+        form.addRow("Experience (Years):", self.exp_spin)
         form.addRow("Designation*:", self.designation_input)
         form.addRow("Department*:", self.dept_combo)
         form.addRow("Primary Subject*:", self.subject_input)
+        form.addRow("Emergency Contact Name:", self.emergency_name_input)
+        form.addRow("Emergency Contact Phone:", self.emergency_phone_input)
         form.addRow("Monthly Basic Salary*:", self.salary_spin)
         form.addRow("Employment Status:", self.status_combo)
+
+        # Hide salary row completely when user lacks salary permission
+        show_sal = self.can_view_salary and self.can_manage_salary
+        sal_lbl = form.labelForField(self.salary_spin)
+        if sal_lbl:
+            sal_lbl.setVisible(show_sal)
+        self.salary_spin.setVisible(show_sal)
 
         layout.addLayout(form)
 
@@ -122,11 +143,16 @@ class TeacherFormDialog(QDialog):
                 self.phone_input.setText(t.phone)
                 self.email_input.setText(t.email)
                 self.qual_input.setText(t.qualification)
+                self.exp_spin.setValue(float(t.experience_years or 0.0))
                 self.designation_input.setText(t.designation)
                 idx = self.dept_combo.findData(t.department_id)
-                if idx >= 0: self.dept_combo.setCurrentIndex(idx)
+                if idx >= 0:
+                    self.dept_combo.setCurrentIndex(idx)
                 self.subject_input.setText(t.primary_subject)
-                self.salary_spin.setValue(t.salary)
+                self.emergency_name_input.setText(t.emergency_contact_name or "")
+                self.emergency_phone_input.setText(t.emergency_contact_phone or "")
+                if self.can_view_salary:
+                    self.salary_spin.setValue(t.salary)
                 self.status_combo.setCurrentText(t.status)
         finally:
             db.close()
@@ -154,12 +180,16 @@ class TeacherFormDialog(QDialog):
             "phone": phone,
             "email": email,
             "qualification": qual,
+            "experience_years": self.exp_spin.value(),
             "designation": self.designation_input.text().strip(),
             "department_id": self.dept_combo.currentData(),
             "primary_subject": subject,
-            "salary": self.salary_spin.value(),
+            "emergency_contact_name": self.emergency_name_input.text().strip() or None,
+            "emergency_contact_phone": self.emergency_phone_input.text().strip() or None,
             "status": self.status_combo.currentText(),
         }
+        if self.can_view_salary and self.can_manage_salary:
+            payload["salary"] = self.salary_spin.value()
 
         db = SessionLocal()
         try:
@@ -175,3 +205,4 @@ class TeacherFormDialog(QDialog):
                 QMessageBox.critical(self, "Error", msg)
         finally:
             db.close()
+
