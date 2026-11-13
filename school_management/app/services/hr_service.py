@@ -896,6 +896,8 @@ class HRService:
                         existing.status = "Leave"
                         existing.remarks = f"{req.leave_type} Leave (Approved)"
                         existing.marked_by = username
+                        existing.capture_source = "LeaveSync"
+                        existing.leave_request_id = req.id
                     else:
                         db.add(
                             TeacherAttendance(
@@ -904,6 +906,8 @@ class HRService:
                                 status="Leave",
                                 remarks=f"{req.leave_type} Leave (Approved)",
                                 marked_by=username,
+                                capture_source="LeaveSync",
+                                leave_request_id=req.id,
                             )
                         )
                 elif req.employee_type == "staff" and req.staff_id:
@@ -916,6 +920,8 @@ class HRService:
                         existing.status = "Leave"
                         existing.remarks = f"{req.leave_type} Leave (Approved)"
                         existing.marked_by = username
+                        existing.capture_source = "LeaveSync"
+                        existing.leave_request_id = req.id
                     else:
                         db.add(
                             StaffAttendance(
@@ -924,6 +930,8 @@ class HRService:
                                 status="Leave",
                                 remarks=f"{req.leave_type} Leave (Approved)",
                                 marked_by=username,
+                                capture_source="LeaveSync",
+                                leave_request_id=req.id,
                             )
                         )
                 cur += timedelta(days=1)

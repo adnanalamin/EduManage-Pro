@@ -68,7 +68,16 @@ from app.models.staff import (
     EmployeeLifecycleEvent,
     EmployeeEmergencyContact,
 )
-from app.models.attendance import AttendanceStatus, StudentAttendance, TeacherAttendance, StaffAttendance
+from app.models.attendance import (
+    AttendanceStatus,
+    StudentAttendance,
+    TeacherAttendance,
+    StaffAttendance,
+    AttendanceCorrectionRequest,
+    AttendanceDeviceConfig,
+    AttendanceCredentialMapping,
+    AttendanceScanLog,
+)
 from app.models.fee import FeeCategory, FeeStructure, StudentFee, FeePayment
 from app.models.accounting import AccountCategory, AccountTransaction
 from app.models.exam import ExamTerm, GradingScale, ExamSchedule, StudentMark, ExamResultSummary
@@ -140,6 +149,10 @@ __all__ = [
     "StudentAttendance",
     "TeacherAttendance",
     "StaffAttendance",
+    "AttendanceCorrectionRequest",
+    "AttendanceDeviceConfig",
+    "AttendanceCredentialMapping",
+    "AttendanceScanLog",
     "FeeCategory",
     "FeeStructure",
     "StudentFee",

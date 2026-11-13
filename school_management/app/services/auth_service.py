@@ -124,6 +124,11 @@ class AuthService:
                         if ac not in existing_codes:
                             role.permissions.append(perm_map[ac])
                             existing_codes.add(ac)
+                if not any(c.startswith("attendance.corrections.") for c in existing_codes):
+                    for attc in [c for c in preset_codes if c.startswith("attendance.") and c in perm_map]:
+                        if attc not in existing_codes:
+                            role.permissions.append(perm_map[attc])
+                            existing_codes.add(attc)
 
         db.commit()
         return added
