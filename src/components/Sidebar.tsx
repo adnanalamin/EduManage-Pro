@@ -50,10 +50,10 @@ export const MODULE_ITEMS = [
   { id: 'hostel', label: 'Hostel', icon: Building2, badge: 'Live', phase: 12 },
   { id: 'notices', label: 'Notices', icon: Bell, badge: 'Live', phase: 13 },
   { id: 'events', label: 'Events Calendar', icon: CalendarDays, badge: 'Live', phase: 13 },
-  { id: 'reports', label: 'Reports & Export', icon: FileBarChart, badge: 'Phase 14', phase: 14 },
-  { id: 'certificates', label: 'Certificates & IDs', icon: BadgeCheck, badge: 'Phase 15', phase: 15 },
+  { id: 'reports', label: 'Reports & Export', icon: FileBarChart, badge: 'Live', phase: 14 },
+  { id: 'certificates', label: 'Certificates & IDs', icon: BadgeCheck, badge: 'Live', phase: 15 },
   { id: 'settings', label: 'School Settings', icon: Settings, badge: 'Active', phase: 1 },
-  { id: 'python_explorer', label: 'Python Source & EXE', icon: FileCode2, badge: 'Phases 1-13 Files', phase: 1, highlight: true },
+  { id: 'python_explorer', label: 'Python Source & EXE', icon: FileCode2, badge: 'Phases 1-15 Files', phase: 1, highlight: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

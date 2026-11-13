@@ -71,6 +71,7 @@ const PROJECT_TREE: FileNode[] = [
               { path: 'app/models/transport.py', name: 'transport.py', type: 'file', description: 'Vehicle, TransportRoute, TransportStop, TransportPassenger ORM' },
               { path: 'app/models/hostel.py', name: 'hostel.py', type: 'file', description: 'HostelBlock, HostelRoom, HostelAllocation & HostelGatePass ORM Models' },
               { path: 'app/models/notice.py', name: 'notice.py', type: 'file', description: 'SchoolNotice & SchoolEvent ORM Models' },
+              { path: 'app/models/certificate.py', name: 'certificate.py', type: 'file', description: 'CertificateRecord ORM Model (TC, Testimonials, Merit, Experience)' },
             ],
           },
           {
@@ -90,6 +91,7 @@ const PROJECT_TREE: FileNode[] = [
               { path: 'app/repositories/transport_repository.py', name: 'transport_repository.py', type: 'file', description: 'Fleet Vehicles, Routes, Stops & Commuter Seat Allocations Repo' },
               { path: 'app/repositories/hostel_repository.py', name: 'hostel_repository.py', type: 'file', description: 'Hostel Blocks, Rooms, Capacity Caps, Bed Allocations & Gate Passes Repo' },
               { path: 'app/repositories/notice_repository.py', name: 'notice_repository.py', type: 'file', description: 'Notice Board Circulars, Target Audience & Academic Events Repo' },
+              { path: 'app/repositories/certificate_repository.py', name: 'certificate_repository.py', type: 'file', description: 'Certificate Serial Numbering, Revocation & Token Verification Repo' },
             ],
           },
           {
@@ -119,6 +121,8 @@ const PROJECT_TREE: FileNode[] = [
               { path: 'app/services/transport_service.py', name: 'transport_service.py', type: 'file', description: 'Fleet Seeder, Passenger Quota Enforcer & Excel Manifest Exporter' },
               { path: 'app/services/hostel_service.py', name: 'hostel_service.py', type: 'file', description: 'Hostel Data Seeder, Room Capacity Enforcer & openpyxl Excel Exporter' },
               { path: 'app/services/notice_service.py', name: 'notice_service.py', type: 'file', description: 'Circulars & Holiday Seeder, openpyxl Academic Calendar Exporter' },
+              { path: 'app/services/analytics_service.py', name: 'analytics_service.py', type: 'file', description: 'Cross-Module KPI Aggregator, Master Excel & CSV Exporters' },
+              { path: 'app/services/certificate_service.py', name: 'certificate_service.py', type: 'file', description: 'Student/Staff Certificate Issuance, TC Status Update & Seeder' },
             ],
           },
           {
@@ -143,6 +147,8 @@ const PROJECT_TREE: FileNode[] = [
               { path: 'app/reports/hostel_roll_call_pdf.py', name: 'hostel_roll_call_pdf.py', type: 'file', description: 'Landscape A4 ReportLab Night Roll Call & Curfew Inspection PDF' },
               { path: 'app/reports/notice_pdf.py', name: 'notice_pdf.py', type: 'file', description: 'Portrait A4 ReportLab Official School Circular Memo Letterhead PDF' },
               { path: 'app/reports/academic_calendar_pdf.py', name: 'academic_calendar_pdf.py', type: 'file', description: 'Landscape A4 ReportLab Annual Academic Calendar & Holiday Schedule' },
+              { path: 'app/reports/executive_summary_pdf.py', name: 'executive_summary_pdf.py', type: 'file', description: 'Portrait A4 ReportLab Multi-Section Executive Audit Briefing PDF' },
+              { path: 'app/reports/certificate_pdf.py', name: 'certificate_pdf.py', type: 'file', description: 'Landscape A4 Ornamental Certificate & Portrait A4 Batch ID Sheet PDF' },
             ],
           },
           {
@@ -193,6 +199,7 @@ const PROJECT_TREE: FileNode[] = [
                   { path: 'app/ui/dialogs/hostel_gate_pass_dialog.py', name: 'hostel_gate_pass_dialog.py', type: 'file', description: 'PySide6 Modal for Issuing Boarder Outpasses & Curfew Permits' },
                   { path: 'app/ui/dialogs/notice_form_dialog.py', name: 'notice_form_dialog.py', type: 'file', description: 'PySide6 Modal for Publishing Official Circulars & Bulletins' },
                   { path: 'app/ui/dialogs/event_form_dialog.py', name: 'event_form_dialog.py', type: 'file', description: 'PySide6 Modal for Scheduling Academic Events & Holidays' },
+                  { path: 'app/ui/dialogs/certificate_issue_dialog.py', name: 'certificate_issue_dialog.py', type: 'file', description: 'PySide6 Modal for Issuing Official Certificates & Experience Letters' },
                 ],
               },
               {
@@ -223,6 +230,8 @@ const PROJECT_TREE: FileNode[] = [
                   { path: 'app/ui/pages/transport_page.py', name: 'transport_page.py', type: 'file', description: 'PySide6 4-Tab Fleet Registry, Routes, Passenger Allocations & Passes' },
                   { path: 'app/ui/pages/hostel_page.py', name: 'hostel_page.py', type: 'file', description: 'PySide6 4-Tab Hostel Blocks, Rooms, Boarder Allocations & Gate Passes' },
                   { path: 'app/ui/pages/notice_page.py', name: 'notice_page.py', type: 'file', description: 'PySide6 3-Tab Notice Board, Events Calendar & Memo Letterheads' },
+                  { path: 'app/ui/pages/reports_page.py', name: 'reports_page.py', type: 'file', description: 'PySide6 3-Tab Analytics, Report Generator & Data Export Center' },
+                  { path: 'app/ui/pages/certificate_page.py', name: 'certificate_page.py', type: 'file', description: 'PySide6 3-Tab Certificate Registry, Bulk ID Cards & Serial Verifier' },
                 ],
               },
               {
@@ -257,6 +266,8 @@ const PROJECT_TREE: FileNode[] = [
           { path: 'tests/test_transport.py', name: 'test_transport.py', type: 'file', description: 'Pytest Suite for Fleet CRUD, Capacity Caps, Duplicate Rejection & Manifests' },
           { path: 'tests/test_hostel.py', name: 'test_hostel.py', type: 'file', description: 'Pytest Suite for Hostel Capacity, Duplicate Allocations, Gender Checks & Outpasses' },
           { path: 'tests/test_notice.py', name: 'test_notice.py', type: 'file', description: 'Pytest Suite for Notice Priority, Audience Segregation, Holiday Checks & PDF Letterheads' },
+          { path: 'tests/test_reports.py', name: 'test_reports.py', type: 'file', description: 'Unit Suite for KPI Aggregation, Master Excel, CSV & Executive PDF' },
+          { path: 'tests/test_certificate.py', name: 'test_certificate.py', type: 'file', description: 'Unit Suite for Certificate Issuance, Verification, Revocation & Batch ID PDFs' },
         ],
       },
       { path: 'requirements.txt', name: 'requirements.txt', type: 'file', description: 'Core Python Dependencies' },
@@ -1450,6 +1461,93 @@ def test_event_scheduling_and_holiday_detection(db_session):
     # Verifies circular posting, pinned alert priority, and holiday date checks
     pass`;
 
+      case 'app/services/analytics_service.py':
+        return `from sqlalchemy.orm import Session
+from app.models.student import Student
+from app.models.fee import FeeInvoice
+from app.models.accounting import AccountTransaction
+
+class AnalyticsService:
+    """Aggregates cross-module KPIs, fee defaulters, attendance compliance & exports multi-sheet Excel."""
+    @staticmethod
+    def get_executive_kpis(db: Session) -> dict:
+        ...
+
+    @staticmethod
+    def export_master_school_report_excel(db: Session, output_path: str) -> str:
+        # Generates 4-sheet institutional workbook via openpyxl
+        pass`;
+
+      case 'app/reports/executive_summary_pdf.py':
+        return `from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, HRFlowable
+from reportlab.lib.pagesizes import letter, portrait
+
+class ExecutiveSummaryPdf:
+    """Generates Portrait A4 Executive Performance Briefing & Audit Scorecard PDF."""
+    @classmethod
+    def generate(cls, kpis: dict, school, output_pdf_path: str) -> str:
+        doc = SimpleDocTemplate(output_pdf_path, pagesize=portrait(letter))
+        pass`;
+
+      case 'app/ui/pages/reports_page.py':
+        return `from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QTableWidget
+from app.services.analytics_service import AnalyticsService
+from app.reports.executive_summary_pdf import ExecutiveSummaryPdf
+
+class ReportsPage(QWidget):
+    """3-Tab PySide6 GUI: Institutional Health, Report Generator & Data Export Center."""
+    def __init__(self, parent=None, db_session=None):
+        super().__init__(parent)
+        self._init_ui()`;
+
+      case 'tests/test_reports.py':
+        return `import unittest
+from app.services.analytics_service import AnalyticsService
+from app.reports.executive_summary_pdf import ExecutiveSummaryPdf
+
+class TestReports(unittest.TestCase):
+    def test_get_executive_kpis(self):
+        # Verifies student, staff, fee, accounting, attendance & GPA metrics
+        pass`;
+
+      case 'app/models/certificate.py':
+        return `from sqlalchemy import Column, String, Integer, Date, ForeignKey, Text
+from app.database.connection import Base
+from app.models.base import TimestampMixin
+
+class CertificateRecord(Base, TimestampMixin):
+    __tablename__ = "certificates"
+    certificate_number = Column(String(60), unique=True, nullable=False)
+    verification_code = Column(String(40), unique=True, nullable=False)
+    certificate_type = Column(String(60), nullable=False)
+    recipient_name = Column(String(150), nullable=False)
+    status = Column(String(20), default="Issued", nullable=False)`;
+
+      case 'app/reports/certificate_pdf.py':
+        return `from reportlab.lib.pagesizes import A4, landscape, portrait
+from reportlab.pdfgen import canvas
+
+class CertificatePDFGenerator:
+    """Landscape A4 Ornamental Certificate & Portrait A4 8-up Batch CR80 ID Sheet."""
+    @classmethod
+    def generate_certificate_pdf(cls, cert, school, output_pdf_path):
+        pass
+
+    @classmethod
+    def generate_batch_student_id_sheet(cls, students, school, output_pdf_path):
+        pass`;
+
+      case 'app/ui/pages/certificate_page.py':
+        return `from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QTableWidget
+from app.services.certificate_service import CertificateService
+from app.reports.certificate_pdf import CertificatePDFGenerator
+
+class CertificatePage(QWidget):
+    """3-Tab PySide6 GUI: Certificate Issuance, Bulk CR80 ID Studio & Serial Verifier."""
+    def __init__(self, parent=None, db_session=None):
+        super().__init__(parent)
+        self._init_ui()`;
+
       default:
         return `# EduManage Pro - ${path}
 # Complete implementation created in /school_management/${path}
@@ -1516,7 +1614,7 @@ def test_event_scheduling_and_holiday_detection(db_session):
             <div className="flex items-center space-x-2">
               <h2 className="text-base font-bold text-slate-100">Standalone Python 3.12+ Desktop Codebase</h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Phases 1-13 Complete
+                Phases 1-15 Complete
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -1527,7 +1625,7 @@ def test_event_scheduling_and_holiday_detection(db_session):
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => alert("All 94 Python files, build batch files, and PyInstaller spec files are stored directly in your '/school_management/' project folder!")}
+            onClick={() => alert("All 139 Python files, build batch files, and PyInstaller spec files are stored directly in your '/school_management/' project folder!")}
             className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center space-x-1.5 shadow"
           >
             <Download className="w-4 h-4" />
@@ -1544,7 +1642,7 @@ def test_event_scheduling_and_holiday_detection(db_session):
         }`}>
           <div className="pb-2 mb-2 border-b border-inherit flex items-center justify-between text-xs font-semibold text-slate-400">
             <span>Project Files Tree</span>
-            <span className="font-mono text-[10px]">94 files</span>
+            <span className="font-mono text-[10px]">139 Python files</span>
           </div>
           <div className="flex-1 overflow-y-auto space-y-0.5 pr-1">
             {renderTree(PROJECT_TREE)}

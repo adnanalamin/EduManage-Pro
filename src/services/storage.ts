@@ -47,6 +47,12 @@ import {
   SchoolNoticeInfo,
   SchoolEventInfo,
   NoticeStatsInfo,
+  FeeDefaulterRecord,
+  ClassAttendanceAuditItem,
+  ComprehensiveReportAnalytics,
+  CertificateType,
+  CertificateRecordInfo,
+  CertificateStatsInfo,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -91,6 +97,7 @@ const STORAGE_KEYS = {
   HOSTEL_GATE_PASSES: 'edumanage_hostel_gate_passes',
   NOTICES: 'edumanage_school_notices',
   EVENTS: 'edumanage_school_events',
+  CERTIFICATES: 'edumanage_certificates',
 };
 
 const DEFAULT_SCHOOL_SETTINGS: SchoolSetting = {
@@ -3752,6 +3759,402 @@ export const StorageService = {
       totalHolidays,
     };
   },
+
+  // ==========================================
+  // Phase 14: Comprehensive Reports & Analytics
+  // ==========================================
+  getComprehensiveReportAnalytics(classIdFilter?: number): ComprehensiveReportAnalytics {
+    const students = this.getStudents();
+    const teachers = this.getTeachers();
+    const staff = this.getStaff();
+    const invoices = this.getStudentFeeInvoices();
+    const financial = this.getFinancialSummary();
+    const attendances = this.getStudentAttendances();
+    const examTerms = this.getExamTerms();
+    const examResults = this.getExamResultSummaries();
+    const libStats = this.getLibraryStats();
+    const transportStats = this.getTransportStats();
+    const hostelStats = this.getHostelStats();
+
+    const activeStudents = students.filter((s) => s.status === 'active').length;
+    const maleStudents = students.filter((s) => s.gender === 'Male').length;
+    const femaleStudents = students.filter((s) => s.gender === 'Female').length;
+
+    const totalStaff = teachers.length + staff.length;
+    const activeStaff =
+      teachers.filter((t) => t.status === 'active').length +
+      staff.filter((st) => st.status === 'active').length;
+    const teachingStaff = teachers.length;
+
+    const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.netAmount || inv.totalAmount || 0), 0);
+    const totalCollected = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
+    const totalDues = invoices.reduce((sum, inv) => sum + (inv.dueAmount || 0), 0);
+    const collectionEfficiency = totalInvoiced > 0 ? Number(((totalCollected / totalInvoiced) * 100).toFixed(2)) : 0;
+
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    const defaultersList: FeeDefaulterRecord[] = invoices
+      .filter((inv) => {
+        if ((inv.dueAmount || 0) <= 0) return false;
+        if (classIdFilter && inv.classId !== classIdFilter) return false;
+        return true;
+      })
+      .map((inv) => {
+        const studentObj = students.find((s) => s.id === inv.studentId);
+        const dueMs = inv.dueDate ? new Date(inv.dueDate).getTime() : todayMs;
+        const diffDays = dueMs < todayMs ? Math.floor((todayMs - dueMs) / (1000 * 60 * 60 * 24)) : 0;
+        return {
+          invoiceId: inv.id,
+          invoiceNumber: `INV-${String(inv.id).padStart(4, '0')}`,
+          studentId: inv.studentId,
+          studentName: inv.studentName,
+          admissionNumber: inv.studentCode,
+          classSection: `${inv.className}${inv.sectionName ? ` - ${inv.sectionName}` : ''}`,
+          guardianPhone: studentObj?.guardian?.guardianPhone || '+880 1700-000000',
+          title: inv.feeTitle,
+          totalAmount: inv.netAmount || inv.totalAmount,
+          paidAmount: inv.paidAmount,
+          dueAmount: inv.dueAmount,
+          dueDate: inv.dueDate,
+          daysOverdue: Math.max(0, diffDays),
+          status: inv.status,
+        };
+      })
+      .sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+    const totalAtt = attendances.length;
+    const presentAtt = attendances.filter((a) => a.status === 'Present').length;
+    const attendanceRate = totalAtt > 0 ? Number(((presentAtt / totalAtt) * 100).toFixed(2)) : 92.5;
+
+    const classStatsMap: Record<string, { total: number; present: number; absent: number; late: number }> = {};
+    students.forEach((st) => {
+      const clsName = st.className || 'Unassigned';
+      if (!classStatsMap[clsName]) {
+        classStatsMap[clsName] = { total: 0, present: 0, absent: 0, late: 0 };
+      }
+      const stRecords = attendances.filter((a) => a.studentId === st.id);
+      stRecords.forEach((r) => {
+        classStatsMap[clsName].total += 1;
+        if (r.status === 'Present') classStatsMap[clsName].present += 1;
+        else if (r.status === 'Absent') classStatsMap[clsName].absent += 1;
+        else if (r.status === 'Late') classStatsMap[clsName].late += 1;
+      });
+    });
+
+    const classAttendanceList: ClassAttendanceAuditItem[] = Object.entries(classStatsMap).map(([className, c]) => ({
+      className,
+      totalRecords: c.total,
+      presentCount: c.present,
+      absentCount: c.absent,
+      lateCount: c.late,
+      attendancePercentage: c.total > 0 ? Number(((c.present / c.total) * 100).toFixed(2)) : 91.5,
+    }));
+
+    const totalAssessed = examResults.length;
+    const passedCount = examResults.filter((r) => r.passedAll).length;
+    const passRate = totalAssessed > 0 ? Number(((passedCount / totalAssessed) * 100).toFixed(2)) : 95.0;
+    const avgGpa =
+      totalAssessed > 0
+        ? Number((examResults.reduce((s, r) => s + (r.gpa || 0), 0) / totalAssessed).toFixed(2))
+        : 3.92;
+
+    return {
+      totalStudents: students.length,
+      activeStudents,
+      maleStudents,
+      femaleStudents,
+      totalStaff,
+      activeStaff,
+      teachingStaff,
+      totalInvoiced,
+      totalCollected,
+      totalDues,
+      collectionEfficiency,
+      defaultersCount: defaultersList.length,
+      totalIncome: financial.totalIncome,
+      totalExpenses: financial.totalExpense,
+      netSurplus: financial.netSurplus,
+      attendanceRate,
+      examTermsCount: examTerms.length,
+      totalAssessed,
+      passRate,
+      avgGpa,
+      totalBooks: libStats.totalTitles,
+      activeLoans: libStats.currentlyIssued,
+      totalRoutes: transportStats.totalRoutes,
+      transportPassengers: transportStats.allocatedPassengers,
+      hostelCapacity: hostelStats.totalCapacity,
+      hostelOccupancy: hostelStats.occupiedBeds,
+      hostelOccupancyRate: hostelStats.occupancyRate,
+      classAttendanceList,
+      defaultersList,
+    };
+  },
+
+  generateCsvExport(
+    reportType: 'defaulters' | 'demographics' | 'attendance' | 'financial',
+    classIdFilter?: number
+  ): { filename: string; csvContent: string } {
+    const dateStamp = new Date().toISOString().split('T')[0];
+    const esc = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    if (reportType === 'defaulters') {
+      const analytics = this.getComprehensiveReportAnalytics(classIdFilter);
+      const headers = [
+        'Invoice No',
+        'Admission No',
+        'Student Name',
+        'Class & Section',
+        'Fee Description',
+        'Billed (BDT)',
+        'Paid (BDT)',
+        'Due (BDT)',
+        'Due Date',
+        'Days Overdue',
+        'Status',
+        'Guardian Contact',
+      ];
+      const rows = analytics.defaultersList.map((d) =>
+        [
+          d.invoiceNumber,
+          d.admissionNumber,
+          d.studentName,
+          d.classSection,
+          d.title,
+          d.totalAmount.toFixed(2),
+          d.paidAmount.toFixed(2),
+          d.dueAmount.toFixed(2),
+          d.dueDate,
+          d.daysOverdue,
+          d.status,
+          d.guardianPhone,
+        ]
+          .map(esc)
+          .join(',')
+      );
+      return {
+        filename: `EduManage_Fee_Defaulters_${dateStamp}.csv`,
+        csvContent: [headers.map(esc).join(','), ...rows].join('\n'),
+      };
+    }
+
+    if (reportType === 'demographics') {
+      const classes = this.getDetailedClasses();
+      const targetClassName = classIdFilter ? classes.find((c) => c.id === classIdFilter)?.name : undefined;
+      const students = this.getStudents().filter((s) => !targetClassName || s.className === targetClassName);
+      const headers = [
+        'Student ID',
+        'Admission No',
+        'Full Name',
+        'Class',
+        'Section',
+        'Roll',
+        'Gender',
+        'Date of Birth',
+        'Blood Group',
+        'Guardian Name',
+        'Guardian Phone',
+        'Status',
+      ];
+      const rows = students.map((s) =>
+        [
+          s.studentId,
+          s.admissionNumber,
+          s.fullName,
+          s.className,
+          s.sectionName || '',
+          s.rollNumber,
+          s.gender,
+          s.dateOfBirth,
+          s.bloodGroup || '',
+          s.guardian?.guardianName || '',
+          s.guardian?.guardianPhone || '',
+          s.status,
+        ]
+          .map(esc)
+          .join(',')
+      );
+      return {
+        filename: `EduManage_Student_Roster_${dateStamp}.csv`,
+        csvContent: [headers.map(esc).join(','), ...rows].join('\n'),
+      };
+    }
+
+    if (reportType === 'attendance') {
+      const analytics = this.getComprehensiveReportAnalytics();
+      const headers = ['Class / Grade', 'Total Sessions', 'Present', 'Absent', 'Late', 'Attendance Rate (%)'];
+      const rows = analytics.classAttendanceList.map((c) =>
+        [c.className, c.totalRecords, c.presentCount, c.absentCount, c.lateCount, `${c.attendancePercentage}%`]
+          .map(esc)
+          .join(',')
+      );
+      return {
+        filename: `EduManage_Attendance_Compliance_${dateStamp}.csv`,
+        csvContent: [headers.map(esc).join(','), ...rows].join('\n'),
+      };
+    }
+
+    // financial
+    const txs = this.getAccountTransactions();
+    const headers = ['Voucher No', 'Date', 'Type', 'Category', 'Party / Description', 'Amount (BDT)', 'Payment Mode', 'Status'];
+    const rows = txs.map((t) =>
+      [t.voucherNo, t.transactionDate, t.type, t.categoryName, t.description || t.paidToReceivedFrom, t.amount.toFixed(2), t.paymentMethod, t.status]
+        .map(esc)
+        .join(',')
+    );
+    return {
+      filename: `EduManage_Financial_Ledger_${dateStamp}.csv`,
+      csvContent: [headers.map(esc).join(','), ...rows].join('\n'),
+    };
+  },
+
+  // ==========================================
+  // Phase 15: Certificate & Official Credentials
+  // ==========================================
+  getCertificates(typeFilter?: string, statusFilter?: string): CertificateRecordInfo[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
+    let list: CertificateRecordInfo[];
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(DEFAULT_CERTIFICATES));
+      list = DEFAULT_CERTIFICATES;
+    } else {
+      list = JSON.parse(raw);
+    }
+    return list
+      .filter((c) => {
+        if (typeFilter && typeFilter !== 'All' && c.certificateType !== typeFilter) return false;
+        if (statusFilter && statusFilter !== 'All' && c.status !== statusFilter) return false;
+        return true;
+      })
+      .sort((a, b) => b.id - a.id);
+  },
+
+  saveCertificates(list: CertificateRecordInfo[]): void {
+    localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(list));
+  },
+
+  issueCertificate(payload: {
+    certificateType: CertificateType;
+    recipientType: 'Student' | 'Teacher' | 'Staff';
+    studentId?: number;
+    staffOrTeacherId?: number;
+    recipientName: string;
+    recipientCode: string;
+    classOrDesignation: string;
+    fatherOrGuardian: string;
+    leavingDate?: string;
+    conductGrade: string;
+    reasonOrPurpose: string;
+    remarks?: string;
+    markStudentTransferred?: boolean;
+  }): CertificateRecordInfo {
+    const existing = this.getCertificates();
+    const prefixMap: Record<CertificateType, string> = {
+      'Transfer Certificate': 'TC',
+      'Character Certificate': 'CC',
+      Testimonial: 'TM',
+      'Bonafide Certificate': 'BF',
+      'Merit Certificate': 'MR',
+      'Staff Experience Letter': 'EX',
+    };
+    const prefix = prefixMap[payload.certificateType] || 'CT';
+    const year = new Date().getFullYear();
+    const seq = existing.filter((c) => c.certificateType === payload.certificateType).length + 1;
+    const certificateNumber = `CERT-${prefix}-${year}-${String(seq).padStart(4, '0')}`;
+    const verificationCode = `VER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+
+    const newRecord: CertificateRecordInfo = {
+      id: Date.now(),
+      certificateNumber,
+      verificationCode,
+      certificateType: payload.certificateType,
+      recipientType: payload.recipientType,
+      studentId: payload.studentId,
+      staffOrTeacherId: payload.staffOrTeacherId,
+      recipientName: payload.recipientName,
+      recipientCode: payload.recipientCode,
+      classOrDesignation: payload.classOrDesignation,
+      fatherOrGuardian: payload.fatherOrGuardian,
+      issueDate: new Date().toISOString().split('T')[0],
+      leavingDate: payload.leavingDate,
+      conductGrade: payload.conductGrade,
+      reasonOrPurpose: payload.reasonOrPurpose,
+      remarks: payload.remarks,
+      status: 'Issued',
+      issuedBy: this.getCurrentUser()?.fullName || 'Principal Office',
+    };
+
+    this.saveCertificates([newRecord, ...existing]);
+
+    if (
+      payload.certificateType === 'Transfer Certificate' &&
+      payload.markStudentTransferred &&
+      payload.studentId
+    ) {
+      this.updateStudent(payload.studentId, { status: 'transferred' });
+    }
+
+    this.addActivityLog({
+      username: this.getCurrentUser()?.username || 'admin',
+      action: 'CERTIFICATE_ISSUED',
+      module: 'CERTIFICATES',
+      description: `Issued ${payload.certificateType} (${certificateNumber}) to ${payload.recipientName}`,
+      severity: 'INFO',
+    });
+
+    return newRecord;
+  },
+
+  revokeCertificate(certId: number, reason: string = 'Revoked by Administration'): CertificateRecordInfo | null {
+    const existing = this.getCertificates();
+    const target = existing.find((c) => c.id === certId);
+    if (!target) return null;
+    const updated = existing.map((c) =>
+      c.id === certId
+        ? {
+            ...c,
+            status: 'Revoked' as const,
+            remarks: `[REVOKED: ${reason}] ${c.remarks || ''}`.trim(),
+          }
+        : c
+    );
+    this.saveCertificates(updated);
+    this.addActivityLog({
+      username: this.getCurrentUser()?.username || 'admin',
+      action: 'CERTIFICATE_REVOKED',
+      module: 'CERTIFICATES',
+      description: `Revoked credential ${target.certificateNumber} (${target.recipientName})`,
+      severity: 'WARNING',
+    });
+    return updated.find((c) => c.id === certId) || null;
+  },
+
+  verifyCertificate(tokenOrSerial: string): CertificateRecordInfo | null {
+    const clean = tokenOrSerial.trim().toUpperCase();
+    if (!clean) return null;
+    const all = this.getCertificates();
+    return (
+      all.find(
+        (c) =>
+          c.certificateNumber.toUpperCase() === clean ||
+          c.verificationCode.toUpperCase() === clean
+      ) || null
+    );
+  },
+
+  getCertificateStats(): CertificateStatsInfo {
+    const all = this.getCertificates();
+    const issued = all.filter((c) => c.status === 'Issued');
+    const revoked = all.filter((c) => c.status === 'Revoked');
+    return {
+      total: all.length,
+      issued: issued.length,
+      revoked: revoked.length,
+      transferCertificates: issued.filter((c) => c.certificateType === 'Transfer Certificate').length,
+      meritAndTestimonials: issued.filter(
+        (c) => c.certificateType === 'Merit Certificate' || c.certificateType === 'Testimonial'
+      ).length,
+    };
+  },
 };
 
 const DEFAULT_FEE_CATEGORIES: FeeCategoryInfo[] = [
@@ -5784,7 +6187,84 @@ const DEFAULT_EVENTS: SchoolEventInfo[] = [
   },
 ];
 
+const DEFAULT_CERTIFICATES: CertificateRecordInfo[] = [
+  {
+    id: 1,
+    certificateNumber: 'CERT-BF-2026-0001',
+    verificationCode: 'VER-8A41D9C2',
+    certificateType: 'Bonafide Certificate',
+    recipientType: 'Student',
+    studentId: 1,
+    recipientName: 'Samiul Islam',
+    recipientCode: 'STU-2026-001',
+    classOrDesignation: 'Class 10 (Section A, Roll 1)',
+    fatherOrGuardian: 'Md. Abdul Karim',
+    issueDate: '2026-02-10',
+    conductGrade: 'Exemplary',
+    reasonOrPurpose: 'National Olympiad & Student Visa Verification',
+    remarks: 'Full-time regular student in good standing.',
+    status: 'Issued',
+    issuedBy: 'Prof. Dr. Mohammad Rafiqul Islam',
+  },
+  {
+    id: 2,
+    certificateNumber: 'CERT-MR-2026-0001',
+    verificationCode: 'VER-5C92E7B1',
+    certificateType: 'Merit Certificate',
+    recipientType: 'Student',
+    studentId: 2,
+    recipientName: 'Sadia Jahan',
+    recipientCode: 'STU-2026-002',
+    classOrDesignation: 'Class 10 (Section A, Roll 2)',
+    fatherOrGuardian: 'Md. Jahangir Alam',
+    issueDate: '2026-02-18',
+    conductGrade: 'Exemplary',
+    reasonOrPurpose: '1st Position in Inter-School Science & Robotics Fair',
+    remarks: 'Awarded Gold Distinction for Autonomous Water Quality Sensor.',
+    status: 'Issued',
+    issuedBy: 'Prof. Dr. Mohammad Rafiqul Islam',
+  },
+  {
+    id: 3,
+    certificateNumber: 'CERT-TM-2026-0001',
+    verificationCode: 'VER-7F10B3A8',
+    certificateType: 'Testimonial',
+    recipientType: 'Student',
+    studentId: 3,
+    recipientName: 'Tanvir Hasan',
+    recipientCode: 'STU-2026-003',
+    classOrDesignation: 'Class 10 (Section A, Roll 3)',
+    fatherOrGuardian: 'Kamrul Hasan',
+    issueDate: '2026-03-02',
+    conductGrade: 'Very Good',
+    reasonOrPurpose: 'Higher Secondary College Admission & Scholarship',
+    remarks: 'Demonstrated leadership as Debate Club Secretary.',
+    status: 'Issued',
+    issuedBy: 'Prof. Dr. Mohammad Rafiqul Islam',
+  },
+  {
+    id: 4,
+    certificateNumber: 'CERT-EX-2026-0001',
+    verificationCode: 'VER-3D64F8E9',
+    certificateType: 'Staff Experience Letter',
+    recipientType: 'Teacher',
+    staffOrTeacherId: 2,
+    recipientName: 'Nasreen Sultana',
+    recipientCode: 'TCH-2024-002',
+    classOrDesignation: 'Assistant Professor, English',
+    fatherOrGuardian: 'N/A',
+    issueDate: '2026-03-08',
+    leavingDate: '2026-03-08',
+    conductGrade: 'Exemplary',
+    reasonOrPurpose: 'Academic Tenure & Professional Reference',
+    remarks: 'Recognized for 6 years of dedicated English curriculum mentorship.',
+    status: 'Issued',
+    issuedBy: 'Prof. Dr. Mohammad Rafiqul Islam',
+  },
+];
+
 export const storage = StorageService;
+
 
 
 

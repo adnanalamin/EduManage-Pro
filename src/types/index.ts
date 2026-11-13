@@ -779,6 +779,45 @@ export interface ReportFilterConfig {
   format: 'preview' | 'pdf' | 'csv' | 'xlsx';
 }
 
+// ----------------- Phase 15: Certificate & Official Credentials -----------------
+export type CertificateType =
+  | 'Transfer Certificate'
+  | 'Character Certificate'
+  | 'Testimonial'
+  | 'Bonafide Certificate'
+  | 'Merit Certificate'
+  | 'Staff Experience Letter';
+
+export interface CertificateRecordInfo {
+  id: number;
+  certificateNumber: string;
+  verificationCode: string;
+  certificateType: CertificateType;
+  recipientType: 'Student' | 'Teacher' | 'Staff';
+  studentId?: number;
+  staffOrTeacherId?: number;
+  recipientName: string;
+  recipientCode: string;
+  classOrDesignation: string;
+  fatherOrGuardian: string;
+  issueDate: string;
+  leavingDate?: string;
+  conductGrade: string;
+  reasonOrPurpose: string;
+  remarks?: string;
+  status: 'Issued' | 'Revoked';
+  issuedBy: string;
+}
+
+export interface CertificateStatsInfo {
+  total: number;
+  issued: number;
+  revoked: number;
+  transferCertificates: number;
+  meritAndTestimonials: number;
+}
+
+
 
 
 

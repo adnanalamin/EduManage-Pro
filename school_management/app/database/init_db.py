@@ -10,6 +10,7 @@ from app.models.user import User, Role, Permission
 from app.models.school import SchoolSetting
 from app.models.academic import AcademicYear, SchoolClass, Section, Subject
 from app.models.activity import ActivityLog
+from app.models.certificate import CertificateRecord
 from app.security.hasher import PasswordHasher
 from app.config.logging_config import app_logger
 

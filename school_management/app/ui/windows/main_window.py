@@ -26,6 +26,7 @@ from app.ui.pages.transport_page import TransportPage
 from app.ui.pages.hostel_page import HostelPage
 from app.ui.pages.notice_page import NoticePage
 from app.ui.pages.reports_page import ReportsPage
+from app.ui.pages.certificate_page import CertificatePage
 from app.ui.themes.styles import DARK_THEME_QSS, LIGHT_THEME_QSS
 from app.services.auth_service import AuthService
 from app.database.connection import SessionLocal
@@ -134,7 +135,11 @@ class MainWindow(QMainWindow):
         self.reports_page = ReportsPage(self, db_session=SessionLocal())
         self.stack.addWidget(self.reports_page)
 
-        # Module Placeholders (Ready for Phases 15 - 17)
+        # Certificate & ID Card Generator Page (Phase 15)
+        self.certificate_page = CertificatePage(self, db_session=SessionLocal())
+        self.stack.addWidget(self.certificate_page)
+
+        # Module Placeholders (Settings handled via SetupWizard/Dialog)
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
@@ -153,9 +158,9 @@ class MainWindow(QMainWindow):
             "notices": 13,
             "events": 13,
             "reports": 14,
+            "certificates": 15,
         }
         module_names = [
-            ("certificates", "Phase 15: Certificate & ID Generator"),
             ("settings", "Phase 1: School Settings & System Preferences"),
         ]
         for key, title in module_names:
@@ -218,6 +223,8 @@ class MainWindow(QMainWindow):
                 self.notice_page.refresh_all()
             elif module_key == "reports":
                 self.reports_page.refresh_all()
+            elif module_key == "certificates":
+                self.certificate_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme

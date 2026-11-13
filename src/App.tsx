@@ -16,6 +16,8 @@ import { LibraryManagement } from './pages/LibraryManagement';
 import { TransportManagement } from './pages/TransportManagement';
 import { HostelManagement } from './pages/HostelManagement';
 import { NoticeManagement } from './pages/NoticeManagement';
+import { ReportsManagement } from './pages/ReportsManagement';
+import { CertificateManagement } from './pages/CertificateManagement';
 import { ModulePlaceholder } from './pages/ModulePlaceholder';
 import { PythonProjectExplorer } from './components/PythonProjectExplorer';
 import { LoginModal } from './components/LoginModal';
@@ -278,6 +280,14 @@ export default function App() {
             ) : currentModule === 'notices' || currentModule === 'events' ? (
               <div className="p-6">
                 <NoticeManagement />
+              </div>
+            ) : currentModule === 'reports' ? (
+              <div className="p-6">
+                <ReportsManagement isDark={isDark} />
+              </div>
+            ) : currentModule === 'certificates' ? (
+              <div className="p-6">
+                <CertificateManagement isDark={isDark} />
               </div>
             ) : currentModule === 'python_explorer' ? (
               <PythonProjectExplorer isDark={isDark} />
