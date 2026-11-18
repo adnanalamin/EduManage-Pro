@@ -88,6 +88,16 @@ from app.models.hostel import HostelBlock, HostelRoom, HostelAllocation, HostelG
 from app.models.inventory import InventoryCategory, InventoryItem, InventoryTransaction
 from app.models.notice import SchoolNotice, SchoolEvent
 from app.models.certificate import CertificateRecord
+from app.models.admission import (
+    AdmissionStatus,
+    AdmissionFeeConfig,
+    AdmissionApplication,
+    AdmissionDocumentChecklist,
+    AdmissionTestScore,
+    AdmissionInterview,
+    AdmissionFeePayment,
+    AdmissionStatusHistory,
+)
 
 __all__ = [
     "Base",
@@ -184,4 +194,12 @@ __all__ = [
     "SchoolNotice",
     "SchoolEvent",
     "CertificateRecord",
+    "AdmissionStatus",
+    "AdmissionFeeConfig",
+    "AdmissionApplication",
+    "AdmissionDocumentChecklist",
+    "AdmissionTestScore",
+    "AdmissionInterview",
+    "AdmissionFeePayment",
+    "AdmissionStatusHistory",
 ]

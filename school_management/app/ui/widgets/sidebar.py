@@ -13,6 +13,7 @@ from PySide6.QtGui import QIcon, QFont
 MODULES = [
     ("dashboard", "Dashboard", "📊"),
     ("students", "Students", "🎓"),
+    ("admissions", "Admissions", "🪪"),
     ("teachers", "Teachers", "👨‍🏫"),
     ("staff", "Staff", "💼"),
     ("hr", "HR & Payroll", "👔"),

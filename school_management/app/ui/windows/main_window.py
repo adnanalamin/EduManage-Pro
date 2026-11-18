@@ -16,6 +16,7 @@ from app.services.auth_service import AuthService
 from app.ui.dialogs.security_dialogs import ChangePasswordDialog
 from app.ui.pages.academic_management_page import AcademicManagementPage
 from app.ui.pages.accounting_page import AccountingPage
+from app.ui.pages.admission_page import AdmissionPage
 from app.ui.pages.attendance_page import AttendancePage
 from app.ui.pages.certificate_page import CertificatePage
 from app.ui.pages.dashboard_page import DashboardPage
@@ -148,9 +149,13 @@ class MainWindow(QMainWindow):
         self.hr_page = HRManagementPage(self)
         self.stack.addWidget(self.hr_page)
 
+        self.admission_page = AdmissionPage(self)
+        self.stack.addWidget(self.admission_page)
+
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
+            "admissions": 18,
             "teachers": 2,
             "staff": 3,
             "academics": 4,
@@ -250,6 +255,8 @@ class MainWindow(QMainWindow):
                 self.settings_page.refresh_all()
             elif module_key == "hr":
                 self.hr_page.refresh_all()
+            elif module_key == "admissions":
+                self.admission_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme
