@@ -97,7 +97,11 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("history", "Academic Year Timetable History & Cloning", ["VIEW", "CREATE", "EXPORT"]),
     ],
     "LIBRARY": [
-        ("circulation", "Book Catalog, Members & Circulation", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("catalog", "Books, Authors, Publishers, Categories, Shelves & Barcodes", ["VIEW", "CREATE", "EDIT", "DELETE", "IMPORT", "EXPORT", "PRINT", "MANAGE"]),
+        ("circulation", "Book Issue, Return, Renewal & Reservations", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "MANAGE"]),
+        ("members", "Library Members & Barcode/QR Library Cards", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "MANAGE"]),
+        ("fines", "Fines, Lost & Damaged Book Incidents", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT", "MANAGE"]),
+        ("reports", "Borrowing History, Fine & Inventory Reports", ["VIEW", "PRINT", "EXPORT"]),
     ],
     "TRANSPORT": [
         ("fleet", "Vehicles, Routes & Passenger Allocations", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
@@ -240,7 +244,9 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "timetable.routines.VIEW",
                     "timetable.routines.PRINT",
                     "timetable.history.VIEW",
+                    "library.catalog.VIEW",
                     "library.circulation.VIEW",
+                    "library.reports.VIEW",
                     "notices.bulletins.VIEW",
                     "hr.leave.VIEW",
                     "hr.leave.CREATE",

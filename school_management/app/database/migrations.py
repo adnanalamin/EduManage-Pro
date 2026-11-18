@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 12
+CURRENT_SCHEMA_VERSION = 13
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -107,6 +107,13 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "Advanced Timetable Management: Multi-shift PeriodSlots, AcademicRoom & AcademicShift linkage, "
             "Teacher/Room/Class & cross-shift conflict engine, automated timetable suggestion metadata, "
             "and immutable academic-year TimetableHistory"
+        ),
+    },
+    {
+        "version": 13,
+        "description": (
+            "Advanced Library Management: Normalized LibraryAuthors, LibraryPublishers, LibraryShelves, "
+            "barcoded/QR BookCopies, BookReservations, auditable LibraryFines, and Lost/Damaged BookIncidents"
         ),
     },
 ]

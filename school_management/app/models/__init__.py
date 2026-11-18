@@ -112,7 +112,19 @@ from app.models.exam import (
     MCQAttemptAnswer,
 )
 from app.models.timetable import PeriodSlot, TimetableEntry, TimetableHistory
-from app.models.library import BookCategory, Book, LibraryMember, BookCirculation
+from app.models.library import (
+    LibraryAuthor,
+    LibraryPublisher,
+    BookCategory,
+    LibraryShelf,
+    Book,
+    BookCopy,
+    LibraryMember,
+    BookReservation,
+    BookCirculation,
+    LibraryFine,
+    BookIncident,
+)
 from app.models.transport import Vehicle, TransportRoute, TransportStop, TransportPassenger
 from app.models.hostel import HostelBlock, HostelRoom, HostelAllocation, HostelGatePass
 from app.models.inventory import InventoryCategory, InventoryItem, InventoryTransaction
@@ -232,10 +244,17 @@ __all__ = [
     "PeriodSlot",
     "TimetableEntry",
     "TimetableHistory",
+    "LibraryAuthor",
+    "LibraryPublisher",
     "BookCategory",
+    "LibraryShelf",
     "Book",
+    "BookCopy",
     "LibraryMember",
+    "BookReservation",
     "BookCirculation",
+    "LibraryFine",
+    "BookIncident",
     "Vehicle",
     "TransportRoute",
     "TransportStop",
