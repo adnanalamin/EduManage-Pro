@@ -1,31 +1,44 @@
 """
-EduManage Pro - Fee Payment Collection Dialog (PySide6)
-Collects full or partial fee payments, records payment method and transaction ID,
-and triggers official PDF receipt voucher generation.
+EduManage Pro - Enterprise Fee Payment Collection Dialog (PySide6)
+Collects full or partial fee payments across Cash, Bank, Card, Mobile Banking, or Other channels,
+supports applying Student Advance Wallet credit, and triggers official PDF receipt generation.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QComboBox, QDoubleSpinBox, QPushButton, QMessageBox, QFrame, QFileDialog
-)
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 from sqlalchemy.orm import Session
+
 from app.database.connection import SessionLocal
-from app.models.fee import StudentFee
+from app.models.fee import PAYMENT_CHANNELS, StudentFee
 from app.models.school import SchoolSetting
-from app.services.fee_service import FeeService
+from app.repositories.fee_repository import FeeRepository
 from app.reports.fee_receipt_pdf import FeeReceiptPDFGenerator
+from app.security.session import session
+from app.services.fee_service import FeeService
 
 
 class FeePaymentDialog(QDialog):
-    def __init__(self, parent=None, student_fee_id: int = None, current_user: str = "admin"):
+    def __init__(self, parent=None, student_fee_id: int = None, current_user: str = None):
         super().__init__(parent)
         self.student_fee_id = student_fee_id
-        self.current_user = current_user
+        self.current_user = current_user or (session.current_user.username if session.current_user else "admin")
         self.latest_payment = None
+        self.avail_advance = 0.0
 
         self.setWindowTitle("Collect Student Fee Payment")
-        self.setFixedSize(480, 480)
+        self.setFixedSize(500, 540)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         self._init_ui()
@@ -33,14 +46,13 @@ class FeePaymentDialog(QDialog):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         layout.setContentsMargins(20, 20, 20, 20)
 
         header = QLabel("Fee Payment Collection")
         header.setStyleSheet("font-size: 16px; font-weight: bold; color: #1E3A8A;")
         layout.addWidget(header)
 
-        # Student & Fee Info Banner
         self.info_frame = QFrame()
         self.info_frame.setStyleSheet("background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;")
         info_layout = QVBoxLayout(self.info_frame)
@@ -51,7 +63,7 @@ class FeePaymentDialog(QDialog):
         self.lbl_student.setStyleSheet("font-size: 13px; font-weight: bold; color: #0F172A;")
         info_layout.addWidget(self.lbl_student)
 
-        self.lbl_fee_title = QLabel("Fee Item: Loading...")
+        self.lbl_fee_title = QLabel("Invoice: Loading...")
         self.lbl_fee_title.setStyleSheet("font-size: 12px; color: #475569;")
         info_layout.addWidget(self.lbl_fee_title)
 
@@ -59,34 +71,40 @@ class FeePaymentDialog(QDialog):
         self.lbl_due.setStyleSheet("font-size: 13px; font-weight: bold; color: #DC2626;")
         info_layout.addWidget(self.lbl_due)
 
+        self.lbl_advance = QLabel("Advance Wallet Credit Available: ৳0.00")
+        self.lbl_advance.setStyleSheet("font-size: 12px; font-weight: bold; color: #0284C7;")
+        info_layout.addWidget(self.lbl_advance)
+
         layout.addWidget(self.info_frame)
 
-        # Payment Amount Input
         layout.addWidget(QLabel("Payment Amount (BDT ৳) *"))
         self.amount_spin = QDoubleSpinBox()
-        self.amount_spin.setRange(1.0, 1000000.0)
+        self.amount_spin.setRange(0.01, 10000000.0)
         self.amount_spin.setDecimals(2)
         self.amount_spin.setSingleStep(100.0)
         layout.addWidget(self.amount_spin)
 
-        # Payment Channel & Method
         h_row = QHBoxLayout()
         v_method = QVBoxLayout()
-        v_method.addWidget(QLabel("Payment Method *"))
+        v_method.addWidget(QLabel("Payment Channel *"))
         self.method_combo = QComboBox()
-        self.method_combo.addItems(["Cash", "bKash", "Nagad", "Rocket", "Bank Transfer", "Debit/Credit Card"])
+        self.method_combo.addItems(list(PAYMENT_CHANNELS))
         v_method.addWidget(self.method_combo)
         h_row.addLayout(v_method)
 
-        v_trx = QVBoxLayout()
-        v_trx.addWidget(QLabel("Transaction ID / Slip No"))
-        self.trx_edit = QLineEdit()
-        self.trx_edit.setPlaceholderText("e.g. BKASH-89210 or Slip #401")
-        v_trx.addWidget(self.trx_edit)
-        h_row.addLayout(v_trx)
+        v_detail = QVBoxLayout()
+        v_detail.addWidget(QLabel("Channel Detail / Provider"))
+        self.detail_edit = QLineEdit()
+        self.detail_edit.setPlaceholderText("e.g. bKash, Nagad, Sonali Bank, VISA")
+        v_detail.addWidget(self.detail_edit)
+        h_row.addLayout(v_detail)
         layout.addLayout(h_row)
 
-        # Remarks
+        layout.addWidget(QLabel("Transaction ID / Slip / Cheque No"))
+        self.trx_edit = QLineEdit()
+        self.trx_edit.setPlaceholderText("e.g. TRX-89210 or Slip #401")
+        layout.addWidget(self.trx_edit)
+
         layout.addWidget(QLabel("Notes / Remarks"))
         self.remarks_edit = QLineEdit()
         self.remarks_edit.setPlaceholderText("Optional cashier notes...")
@@ -94,16 +112,19 @@ class FeePaymentDialog(QDialog):
 
         layout.addStretch()
 
-        # Action Buttons
         btn_box = QHBoxLayout()
-        btn_box.addStretch()
+        self.adv_btn = QPushButton("Settle Using Advance Wallet")
+        self.adv_btn.setStyleSheet("background-color: #0284C7; color: white; font-weight: bold; padding: 7px 12px; border-radius: 6px;")
+        self.adv_btn.clicked.connect(self._on_apply_advance)
+        btn_box.addWidget(self.adv_btn)
 
+        btn_box.addStretch()
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
         btn_box.addWidget(cancel_btn)
 
         self.save_btn = QPushButton("Confirm Payment & Print Receipt")
-        self.save_btn.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 7px 16px; border-radius: 6px;")
+        self.save_btn.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 7px 14px; border-radius: 6px;")
         self.save_btn.clicked.connect(self._on_confirm_payment)
         btn_box.addWidget(self.save_btn)
 
@@ -112,18 +133,52 @@ class FeePaymentDialog(QDialog):
     def _load_fee_details(self):
         db: Session = SessionLocal()
         try:
-            fee = db.query(StudentFee).filter(StudentFee.id == self.student_fee_id).first()
+            fee = FeeRepository.get_student_fee_by_id(db, self.student_fee_id)
             if not fee:
-                QMessageBox.critical(self, "Error", "Fee record not found.")
+                QMessageBox.critical(self, "Error", "Fee invoice not found.")
                 self.reject()
                 return
 
+            self.avail_advance = FeeRepository.get_student_advance_balance(db, fee.student_id)
             self.lbl_student.setText(f"Student: {fee.student.full_name} ({fee.student.student_id}) — Roll #{fee.student.roll_number}")
-            self.lbl_fee_title.setText(f"Fee: {fee.fee_structure.title} | Net: ৳{fee.net_amount:,.2f} | Paid: ৳{fee.paid_amount:,.2f}")
-            self.lbl_due.setText(f"Outstanding Due Balance: ৳{fee.due_amount:,.2f}")
+            self.lbl_fee_title.setText(f"{fee.invoice_number} | {fee.display_title} | Net: ৳{float(fee.net_amount):,.2f} | Paid: ৳{float(fee.paid_amount):,.2f}")
+            self.lbl_due.setText(f"Outstanding Due Balance: ৳{float(fee.due_amount):,.2f}")
+            self.lbl_advance.setText(f"Advance Wallet Credit Available: ৳{self.avail_advance:,.2f}")
+            self.adv_btn.setEnabled(self.avail_advance > 0.01 and float(fee.due_amount) > 0.01)
 
-            self.amount_spin.setValue(fee.due_amount)
-            self.amount_spin.setMaximum(fee.due_amount)
+            self.amount_spin.setMaximum(max(0.01, float(fee.due_amount)))
+            self.amount_spin.setValue(max(0.01, float(fee.due_amount)))
+        finally:
+            db.close()
+
+    def _offer_receipt_pdf(self, db: Session, payment):
+        school = db.query(SchoolSetting).first()
+        reply = QMessageBox.question(
+            self,
+            "Payment Recorded",
+            f"Payment of ৳{float(payment.amount_paid):,.2f} recorded successfully!\nReceipt No: {payment.receipt_no}\n\nWould you like to export/save the official PDF receipt now?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Save Fee Receipt", f"Receipt_{payment.receipt_no}.pdf", "PDF Documents (*.pdf)"
+            )
+            if file_path:
+                FeeReceiptPDFGenerator.generate_receipt(payment, school, file_path)
+                QMessageBox.information(self, "Receipt Saved", f"Receipt voucher saved to:\n{file_path}")
+
+    def _on_apply_advance(self):
+        db: Session = SessionLocal()
+        try:
+            payment, msg = FeeService.apply_advance_to_invoice(
+                db, self.student_fee_id, amount=self.amount_spin.value(), current_user=self.current_user
+            )
+            if not payment:
+                QMessageBox.warning(self, "Advance Allocation", msg)
+                return
+            self.latest_payment = payment
+            self._offer_receipt_pdf(db, payment)
+            self.accept()
         finally:
             db.close()
 
@@ -134,43 +189,28 @@ class FeePaymentDialog(QDialog):
             return
 
         method = self.method_combo.currentText()
+        detail = self.detail_edit.text().strip() or None
         trx = self.trx_edit.text().strip() or None
         rem = self.remarks_edit.text().strip() or None
 
         db: Session = SessionLocal()
         try:
             payment, msg = FeeService.collect_fee_payment(
-                db, self.student_fee_id, amount,
+                db,
+                self.student_fee_id,
+                amount,
                 payment_method=method,
+                channel_detail=detail,
                 transaction_id=trx,
                 remarks=rem,
-                current_user=self.current_user
+                current_user=self.current_user,
             )
-
             if not payment:
                 QMessageBox.critical(self, "Payment Failed", msg)
                 return
 
             self.latest_payment = payment
-            school = db.query(SchoolSetting).first()
-
-            # Ask user if they wish to export / print the PDF receipt
-            reply = QMessageBox.question(
-                self, "Payment Recorded",
-                f"Payment of ৳{amount:,.2f} recorded successfully!\nReceipt No: {payment.receipt_no}\n\nWould you like to export/save the official PDF receipt now?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-
-            if reply == QMessageBox.Yes and school:
-                file_path, _ = QFileDialog.getSaveFileName(
-                    self, "Save Fee Receipt",
-                    f"Receipt_{payment.receipt_no}.pdf",
-                    "PDF Documents (*.pdf)"
-                )
-                if file_path:
-                    FeeReceiptPDFGenerator.generate_receipt(payment, school, file_path)
-                    QMessageBox.information(self, "Receipt Saved", f"Receipt voucher saved to:\n{file_path}")
-
+            self._offer_receipt_pdf(db, payment)
             self.accept()
         finally:
             db.close()

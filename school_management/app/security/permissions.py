@@ -67,11 +67,14 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("devices", "Optional QR/RFID/Biometric/Face Integration", ["VIEW", "CREATE", "EDIT", "MANAGE"]),
     ],
     "FEES": [
-        ("invoices", "Fee Structures & Student Invoices", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "MANAGE"]),
-        ("collection", "Fee Payments, Waivers & Refunds", ["VIEW", "CREATE", "PRINT", "EXPORT", "APPROVE", "REFUND"]),
+        ("invoices", "Fee Structures & Student Invoices", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT", "MANAGE"]),
+        ("collection", "Fee Payments, Waivers, Advances & Refunds", ["VIEW", "CREATE", "PRINT", "EXPORT", "APPROVE", "REFUND"]),
+        ("reports", "Due, Collection & Fee Audit Reports", ["VIEW", "PRINT", "EXPORT"]),
     ],
     "ACCOUNTING": [
-        ("ledger", "Cash Book, Income & Expense Vouchers", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT", "APPROVE", "MANAGE"]),
+        ("ledger", "Cash Book, General Ledger & Income/Expense Vouchers", ["VIEW", "CREATE", "EDIT", "EXPORT", "APPROVE", "REFUND", "MANAGE"]),
+        ("budgets", "Institutional Budgets & Variance Tracking", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT", "MANAGE"]),
+        ("reports", "Financial Statements & Audit Trail", ["VIEW", "PRINT", "EXPORT"]),
     ],
     "EXAMS": [
         ("schedules", "Exam Terms & Routine Schedules", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "MANAGE"]),

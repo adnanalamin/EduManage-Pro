@@ -1,17 +1,33 @@
 """
 EduManage Pro - Transaction Form Dialog (PySide6)
-Modal dialog to record financial income and expenditure vouchers with instant validation.
+Modal dialog to record immutable financial income and expenditure vouchers across standard channels.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QComboBox, QDoubleSpinBox, QDateEdit, QTextEdit,
-    QPushButton, QMessageBox, QRadioButton, QButtonGroup, QWidget
-)
-from PySide6.QtCore import Qt, QDate
 from datetime import date
+
+from PySide6.QtCore import QDate, Qt
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QDateEdit,
+    QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from app.database.connection import SessionLocal
+from app.models.fee import PAYMENT_CHANNELS
 from app.repositories.accounting_repository import AccountingRepository
+from app.security.session import session
 from app.services.accounting_service import AccountingService
 
 
@@ -20,7 +36,7 @@ class TransactionFormDialog(QDialog):
         super().__init__(parent)
         self.default_type = default_type
         self.setWindowTitle(f"Record New {default_type} Voucher — EduManage Pro")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(520)
         self.setModal(True)
         self.saved_transaction = None
 
@@ -31,8 +47,7 @@ class TransactionFormDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        # Header Title
-        title = QLabel(f"Financial Transaction Voucher")
+        title = QLabel("Financial Transaction Voucher")
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #3b82f6;")
         layout.addWidget(title)
 
@@ -40,7 +55,6 @@ class TransactionFormDialog(QDialog):
         form.setLabelAlignment(Qt.AlignRight)
         form.setSpacing(10)
 
-        # Type Toggle (Income / Expense)
         type_widget = QWidget()
         type_layout = QHBoxLayout(type_widget)
         type_layout.setContentsMargins(0, 0, 0, 0)
@@ -63,11 +77,9 @@ class TransactionFormDialog(QDialog):
         type_layout.addStretch()
         form.addRow("Voucher Type *:", type_widget)
 
-        # Account Category
         self.category_combo = QComboBox()
         form.addRow("Account Category *:", self.category_combo)
 
-        # Amount
         self.amount_spin = QDoubleSpinBox()
         self.amount_spin.setRange(1.0, 10000000.0)
         self.amount_spin.setDecimals(2)
@@ -75,28 +87,27 @@ class TransactionFormDialog(QDialog):
         self.amount_spin.setPrefix("৳ ")
         form.addRow("Voucher Amount *:", self.amount_spin)
 
-        # Date
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDate(QDate.currentDate())
         form.addRow("Transaction Date *:", self.date_edit)
 
-        # Payment Method
         self.method_combo = QComboBox()
-        self.method_combo.addItems(["Cash", "Bank Transfer", "bKash", "Nagad", "Cheque", "Card"])
+        self.method_combo.addItems(list(PAYMENT_CHANNELS))
         form.addRow("Payment Channel *:", self.method_combo)
 
-        # Reference No.
+        self.detail_edit = QLineEdit()
+        self.detail_edit.setPlaceholderText("e.g. bKash, Nagad, Sonali Bank, VISA, Cheque")
+        form.addRow("Channel Detail:", self.detail_edit)
+
         self.ref_edit = QLineEdit()
         self.ref_edit.setPlaceholderText("e.g. Cheque #45012, TrxID BK99281, Slip #88")
         form.addRow("Ref / Instrument #:", self.ref_edit)
 
-        # Payee / Payer
         self.party_edit = QLineEdit()
         self.party_edit.setPlaceholderText("Name of vendor, teacher, donor, or guardian")
         form.addRow("Party / Beneficiary *:", self.party_edit)
 
-        # Particulars / Memo
         self.desc_edit = QTextEdit()
         self.desc_edit.setMaximumHeight(70)
         self.desc_edit.setPlaceholderText("Detailed description of expenditure or receipt purpose")
@@ -104,7 +115,6 @@ class TransactionFormDialog(QDialog):
 
         layout.addLayout(form)
 
-        # Action Buttons
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
@@ -154,6 +164,7 @@ class TransactionFormDialog(QDialog):
         tx_date = date(qdate.year(), qdate.month(), qdate.day())
         trans_type = self._get_current_type()
         amount = self.amount_spin.value()
+        actor = session.current_user.username if session.current_user else "Accountant"
 
         payload = {
             "type": trans_type,
@@ -161,15 +172,16 @@ class TransactionFormDialog(QDialog):
             "amount": amount,
             "transaction_date": tx_date,
             "payment_method": self.method_combo.currentText(),
+            "channel_detail": self.detail_edit.text().strip() or None,
             "reference_no": self.ref_edit.text().strip() or None,
             "paid_to_received_from": party,
             "description": self.desc_edit.toPlainText().strip() or None,
-            "recorded_by": "Accounts Officer"
+            "recorded_by": actor,
         }
 
         db = SessionLocal()
         try:
-            tx, err = AccountingService.record_transaction(db, payload)
+            tx, err = AccountingService.record_transaction(db, payload, actor_username=actor)
             if err:
                 QMessageBox.critical(self, "Transaction Failed", err)
                 return
@@ -179,8 +191,9 @@ class TransactionFormDialog(QDialog):
                 "Voucher Recorded",
                 f"Successfully recorded {trans_type} voucher:\n\n"
                 f"Voucher No: {tx.voucher_no}\n"
+                f"Channel: {tx.payment_method}\n"
                 f"Amount: ৳ {tx.amount:,.2f}\n"
-                f"Party: {tx.paid_to_received_from}"
+                f"Party: {tx.paid_to_received_from}",
             )
             self.accept()
         finally:

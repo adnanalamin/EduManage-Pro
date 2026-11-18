@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 8
+CURRENT_SCHEMA_VERSION = 9
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -77,6 +77,13 @@ MIGRATIONS: List[Dict[str, Any]] = [
         "description": (
             "Admission CRM module: AdmissionApplications, DocumentChecklist, TestScores, "
             "Interviews, Configurable FeeConfigs, FeePayments, MeritList & Student conversion"
+        ),
+    },
+    {
+        "version": 9,
+        "description": (
+            "Enterprise School Finance upgrade: Invoice numbers, Scholarship/Waiver adjustments, "
+            "Advance Credit Wallet, FeeRefunds, Voucher Reversal chains, AccountBudgets, and FinancialAuditLog"
         ),
     },
 ]

@@ -78,8 +78,21 @@ from app.models.attendance import (
     AttendanceCredentialMapping,
     AttendanceScanLog,
 )
-from app.models.fee import FeeCategory, FeeStructure, StudentFee, FeePayment
-from app.models.accounting import AccountCategory, AccountTransaction
+from app.models.fee import (
+    FeeCategory,
+    FeeStructure,
+    StudentFee,
+    FeePayment,
+    FeeAdjustment,
+    FeeRefund,
+    StudentAdvanceCredit,
+)
+from app.models.accounting import (
+    AccountCategory,
+    AccountTransaction,
+    AccountBudget,
+    FinancialAuditLog,
+)
 from app.models.exam import ExamTerm, GradingScale, ExamSchedule, StudentMark, ExamResultSummary
 from app.models.timetable import PeriodSlot, TimetableEntry
 from app.models.library import BookCategory, Book, LibraryMember, BookCirculation
@@ -167,8 +180,13 @@ __all__ = [
     "FeeStructure",
     "StudentFee",
     "FeePayment",
+    "FeeAdjustment",
+    "FeeRefund",
+    "StudentAdvanceCredit",
     "AccountCategory",
     "AccountTransaction",
+    "AccountBudget",
+    "FinancialAuditLog",
     "ExamTerm",
     "GradingScale",
     "ExamSchedule",

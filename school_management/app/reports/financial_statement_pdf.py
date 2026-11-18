@@ -123,7 +123,48 @@ class FinancialStatementPDFGenerator:
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ]))
             story.append(summary_table)
-            story.append(Spacer(1, 14))
+            story.append(Spacer(1, 10))
+
+            # Optional Channel Balances & Fee Receivables Summary (if supplied)
+            ch_bal = summary.get("channel_balances")
+            fee_rec = summary.get("fee_receivables")
+            if ch_bal:
+                ch_row = [
+                    Paragraph(f"<b>Cash:</b><br/>৳ {ch_bal.get('Cash', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Bank:</b><br/>৳ {ch_bal.get('Bank', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Card:</b><br/>৳ {ch_bal.get('Card', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Mobile Banking:</b><br/>৳ {ch_bal.get('Mobile Banking', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Other:</b><br/>৳ {ch_bal.get('Other', 0.0):,.2f}", cell_norm),
+                ]
+                ch_table = Table([ch_row], colWidths=[104, 104, 104, 104, 104])
+                ch_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                story.append(ch_table)
+                story.append(Spacer(1, 10))
+            if fee_rec:
+                fr_row = [
+                    Paragraph(f"<b>Fee Billed:</b> ৳ {fee_rec.get('net_billed', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Concessions:</b> ৳ {fee_rec.get('total_concessions', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Collected:</b> ৳ {fee_rec.get('net_collected', 0.0):,.2f}", cell_norm),
+                    Paragraph(f"<b>Receivable Due:</b> ৳ {fee_rec.get('outstanding_due', 0.0):,.2f}", cell_norm),
+                ]
+                fr_table = Table([fr_row], colWidths=[130, 130, 130, 130])
+                fr_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#bfdbfe")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                story.append(fr_table)
+                story.append(Spacer(1, 12))
+
+            story.append(Spacer(1, 4))
 
             # 3. Revenue Breakdown Table
             story.append(Paragraph("1. Operating Income / Revenue Heads", sec_header_style))
