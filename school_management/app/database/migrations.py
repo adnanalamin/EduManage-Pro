@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 15
+CURRENT_SCHEMA_VERSION = 16
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -130,6 +130,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "Complete Hostel Management: Buildings, HostelFloors, HostelRooms, HostelBeds inventory, "
             "double-bed prevention, Check-In/Check-Out clearance, HostelFeeCharges, Mess Plans/Menus/Logs, "
             "HostelVisitorLog, HostelComplaints, and HostelMaintenanceRequest work orders"
+        ),
+    },
+    {
+        "version": 16,
+        "description": (
+            "Enterprise Inventory & Fixed Assets: Suppliers, Store Locations, Multi-Location Stock, "
+            "Purchase Orders, Purchases with Accounting Expense vouchers, Stock Adjustments, "
+            "Stock Transfers, Sales/Disposals, FixedAsset registry with employee & warranty tracking, and Low-Stock Alerts"
         ),
     },
 ]

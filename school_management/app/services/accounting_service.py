@@ -73,6 +73,7 @@ class AccountingService:
             {"name": "Government & Board Grants", "code": "INC-GRNT", "type": "Income", "description": "Government development grants, subsidies, and education board stipends", "is_system": True},
             {"name": "Donations & Endowments", "code": "INC-DONT", "type": "Income", "description": "Charitable gifts, trustee endowments, and alumni contributions", "is_system": False},
             {"name": "Facilities & Hall Rentals", "code": "INC-RENT", "type": "Income", "description": "Auditorium, sports ground, or cafeteria lease revenues", "is_system": False},
+            {"name": "Inventory Sales & Scrap Recovery", "code": "INC-INV", "type": "Income", "description": "Uniform/book/stationery sales and retired equipment disposal proceeds", "is_system": True},
             {"name": "Other School Incomes", "code": "INC-MISC", "type": "Income", "description": "Syllabus sales, ID replacements, and miscellaneous receipts", "is_system": False},
 
             # Expense Heads
@@ -80,6 +81,7 @@ class AccountingService:
             {"name": "Staff Salaries & Allowances", "code": "EXP-SSAL", "type": "Expense", "description": "Payroll for accountants, librarians, security, and support staff", "is_system": True},
             {"name": "Employee Loans & Salary Advances", "code": "EXP-LOAN", "type": "Expense", "description": "Disbursed staff and teacher loans and salary advances recovered via payroll", "is_system": True},
             {"name": "Fee Refunds & Reversals", "code": "EXP-RFND", "type": "Expense", "description": "Authorized student fee refunds, advance withdrawals, and adjustments", "is_system": True},
+            {"name": "Inventory & Asset Purchases", "code": "EXP-INV", "type": "Expense", "description": "Campus stock procurement, equipment purchases, and fixed asset capital expenditure", "is_system": True},
             {"name": "Electricity & Water Utilities", "code": "EXP-UTIL", "type": "Expense", "description": "Power, generator fuel, water, and municipal utility bills", "is_system": True},
             {"name": "Internet, IT & Software Subscriptions", "code": "EXP-IT", "type": "Expense", "description": "Broadband, domain hosting, SMS gateway, and computer lab licenses", "is_system": False},
             {"name": "Campus & Building Maintenance", "code": "EXP-MAINT", "type": "Expense", "description": "Plumbing, electrical repairs, painting, and classroom fixtures", "is_system": False},

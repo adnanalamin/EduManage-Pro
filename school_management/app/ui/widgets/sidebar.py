@@ -28,6 +28,7 @@ MODULES = [
     ("library", "Library", "📚"),
     ("transport", "Transport", "🚌"),
     ("hostel", "Hostel", "🏢"),
+    ("inventory", "Inventory & Assets", "📦"),
     ("notices", "Notices", "📢"),
     ("events", "Events", "🎉"),
     ("reports", "Reports", "📑"),

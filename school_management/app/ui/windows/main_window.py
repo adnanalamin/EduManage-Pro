@@ -24,6 +24,7 @@ from app.ui.pages.exam_management_page import ExamManagementPage
 from app.ui.pages.fees_management_page import FeesManagementPage
 from app.ui.pages.hostel_page import HostelPage
 from app.ui.pages.hr_management_page import HRManagementPage
+from app.ui.pages.inventory_page import InventoryPage
 from app.ui.pages.library_page import LibraryPage
 from app.ui.pages.notice_page import NoticePage
 from app.ui.pages.payroll_page import PayrollPage
@@ -156,11 +157,15 @@ class MainWindow(QMainWindow):
         self.payroll_page = PayrollPage(self)
         self.stack.addWidget(self.payroll_page)
 
+        self.inventory_page = InventoryPage(self)
+        self.stack.addWidget(self.inventory_page)
+
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
             "admissions": 18,
             "payroll": 19,
+            "inventory": 20,
             "teachers": 2,
             "staff": 3,
             "academics": 4,
@@ -264,6 +269,8 @@ class MainWindow(QMainWindow):
                 self.admission_page.refresh_all()
             elif module_key == "payroll":
                 self.payroll_page.refresh_all()
+            elif module_key == "inventory":
+                self.inventory_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme
