@@ -111,7 +111,13 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("gps", "Optional GPS Device Registry & Telemetry Feeds", ["VIEW", "CREATE", "EDIT", "MANAGE"]),
     ],
     "HOSTEL": [
-        ("dormitory", "Hostel Blocks, Rooms & Gate Passes", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "MANAGE"]),
+        ("dormitory", "Hostel Buildings, Floors, Rooms, Beds & Capacity", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("allocations", "Student Bed Allocations, Check-In, Check-Out & Gate Passes", ["VIEW", "CREATE", "EDIT", "APPROVE", "PRINT", "MANAGE"]),
+        ("fees", "Hostel & Mess Fee Billing & Collection", ["VIEW", "CREATE", "EDIT", "PRINT", "EXPORT", "MANAGE"]),
+        ("mess", "Mess Plans, Weekly Menus & Dining Logs", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("visitors", "Visitor Check-In/Out Logs", ["VIEW", "CREATE", "EDIT", "MANAGE"]),
+        ("maintenance", "Boarder Complaints & Maintenance Work Orders", ["VIEW", "CREATE", "EDIT", "APPROVE", "MANAGE"]),
+        ("reports", "Hostel Occupancy, Roll Call, Fees & Operations Reports", ["VIEW", "PRINT", "EXPORT"]),
     ],
     "INVENTORY": [
         ("stock", "Campus Assets & Stock Ledger", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT", "APPROVE", "MANAGE"]),
@@ -282,6 +288,8 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "hr.reports.EXPORT",
                     "payroll.",
                     "transport.fees.",
+                    "hostel.fees.",
+                    "hostel.reports.VIEW",
                 )
             )
         ]
@@ -318,6 +326,7 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "transport.fleet.VIEW",
                     "transport.routes.VIEW",
                     "hostel.dormitory.VIEW",
+                    "hostel.visitors.",
                 )
             )
         ]

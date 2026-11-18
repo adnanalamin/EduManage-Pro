@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 14
+CURRENT_SCHEMA_VERSION = 15
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -122,6 +122,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "Complete Transport Management: Fleet vehicles (Bus/Van/Microbus/Other), registrations & crew, "
             "routes & pickup points, commuter fees, fuel logs, maintenance logs & reminders, insurance policies, "
             "compliance document vault, and hardware-optional GPS integration tables"
+        ),
+    },
+    {
+        "version": 15,
+        "description": (
+            "Complete Hostel Management: Buildings, HostelFloors, HostelRooms, HostelBeds inventory, "
+            "double-bed prevention, Check-In/Check-Out clearance, HostelFeeCharges, Mess Plans/Menus/Logs, "
+            "HostelVisitorLog, HostelComplaints, and HostelMaintenanceRequest work orders"
         ),
     },
 ]
