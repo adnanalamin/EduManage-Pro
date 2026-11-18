@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 11
+CURRENT_SCHEMA_VERSION = 12
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -99,6 +99,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "Advanced Examination Engine: ExamTypes, customizable GradingSystems & GradingScaleRules, "
             "Viva & Attendance mark components, CGPA & section positions, ExamResultBatches (Verify/Approve/Publish lock), "
             "immutable ExamResultHistory, QuestionBankItems, and MCQ/Written ExamPapers & Attempts"
+        ),
+    },
+    {
+        "version": 12,
+        "description": (
+            "Advanced Timetable Management: Multi-shift PeriodSlots, AcademicRoom & AcademicShift linkage, "
+            "Teacher/Room/Class & cross-shift conflict engine, automated timetable suggestion metadata, "
+            "and immutable academic-year TimetableHistory"
         ),
     },
 ]

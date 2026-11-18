@@ -92,7 +92,9 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("verification", "Result Verification, Approval, Publish Lock & History", ["VIEW", "CREATE", "EDIT", "APPROVE", "MANAGE"]),
     ],
     "TIMETABLE": [
-        ("routines", "Period Slots & Class Routines", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "MANAGE"]),
+        ("routines", "Class, Teacher & Room Routines & Period Slots", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT", "MANAGE"]),
+        ("auto_scheduler", "Automated Timetable Suggestion Engine", ["VIEW", "CREATE", "APPROVE", "MANAGE"]),
+        ("history", "Academic Year Timetable History & Cloning", ["VIEW", "CREATE", "EXPORT"]),
     ],
     "LIBRARY": [
         ("circulation", "Book Catalog, Members & Circulation", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
@@ -236,6 +238,8 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "exams.verification.VIEW",
                     "exams.verification.CREATE",
                     "timetable.routines.VIEW",
+                    "timetable.routines.PRINT",
+                    "timetable.history.VIEW",
                     "library.circulation.VIEW",
                     "notices.bulletins.VIEW",
                     "hr.leave.VIEW",

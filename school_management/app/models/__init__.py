@@ -111,7 +111,7 @@ from app.models.exam import (
     MCQAttempt,
     MCQAttemptAnswer,
 )
-from app.models.timetable import PeriodSlot, TimetableEntry
+from app.models.timetable import PeriodSlot, TimetableEntry, TimetableHistory
 from app.models.library import BookCategory, Book, LibraryMember, BookCirculation
 from app.models.transport import Vehicle, TransportRoute, TransportStop, TransportPassenger
 from app.models.hostel import HostelBlock, HostelRoom, HostelAllocation, HostelGatePass
@@ -231,6 +231,7 @@ __all__ = [
     "MCQAttemptAnswer",
     "PeriodSlot",
     "TimetableEntry",
+    "TimetableHistory",
     "BookCategory",
     "Book",
     "LibraryMember",

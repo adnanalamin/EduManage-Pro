@@ -1,60 +1,81 @@
 """
 EduManage Pro - Period Slot Configuration Dialog
-Phase 9: PySide6 Modal for Managing Period Timings & Break Slots
+PySide6 Modal for Managing Multi-Shift Bell Timings & Break Intervals per Academic Year
 """
 
 from typing import Optional
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit,
-    QSpinBox, QCheckBox, QPushButton, QLabel, QMessageBox
+    QSpinBox, QCheckBox, QPushButton, QLabel, QMessageBox, QComboBox
 )
 from sqlalchemy.orm import Session
+from app.models.academic import AcademicShift, AcademicYear
 from app.models.timetable import PeriodSlot
 from app.repositories.timetable_repository import TimetableRepository
 
 
 class PeriodConfigDialog(QDialog):
-    """Dialog to create or edit a school period time slot."""
+    """Dialog to create or edit a school period time slot for any shift & academic year."""
 
-    def __init__(self, db_session: Session, slot: Optional[PeriodSlot] = None, parent=None):
+    def __init__(
+        self,
+        db_session: Session,
+        slot: Optional[PeriodSlot] = None,
+        default_shift: str = "Morning",
+        academic_year_id: Optional[int] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.db_session = db_session
         self.slot = slot
+        self.default_shift = slot.shift if slot else default_shift
+        self.academic_year_id = (slot.academic_year_id if slot else academic_year_id) or 1
 
-        self.setWindowTitle("Edit Period Slot" if slot else "Add New Period Slot")
-        self.setMinimumWidth(380)
+        self.setWindowTitle("Edit Period Slot" if slot else "Add New Multi-Shift Period Slot")
+        self.setMinimumWidth(420)
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        header = QLabel("School Bell Timing Configuration")
+        header = QLabel("Multi-Shift Bell Timing Configuration")
         header.setStyleSheet("font-weight: bold; font-size: 13px; color: #1E3A8A;")
         layout.addWidget(header)
 
         form = QFormLayout()
         form.setSpacing(8)
 
+        self.shift_combo = QComboBox()
+        shifts = ["Morning", "Day", "Evening"]
+        for sh in self.db_session.query(AcademicShift).filter(AcademicShift.is_deleted == False).all():
+            if sh.name not in shifts:
+                shifts.append(sh.name)
+        self.shift_combo.addItems(shifts)
+        idx = self.shift_combo.findText(self.default_shift)
+        if idx >= 0:
+            self.shift_combo.setCurrentIndex(idx)
+        form.addRow("Shift *:", self.shift_combo)
+
         self.num_spin = QSpinBox()
         self.num_spin.setRange(0, 50)
         self.num_spin.setValue(self.slot.period_number if self.slot else 1)
-        form.addRow("Period Number (0 for Break):", self.num_spin)
+        form.addRow("Period Number (0/99 Break):", self.num_spin)
 
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("e.g. 1st Period, Assembly, Tiffin")
         self.name_edit.setText(self.slot.name if self.slot else "")
-        form.addRow("Period Name:*", self.name_edit)
+        form.addRow("Period Name *:", self.name_edit)
 
         self.start_edit = QLineEdit()
         self.start_edit.setPlaceholderText("e.g. 08:45 AM")
         self.start_edit.setText(self.slot.start_time if self.slot else "08:45 AM")
-        form.addRow("Start Time:*", self.start_edit)
+        form.addRow("Start Time *:", self.start_edit)
 
         self.end_edit = QLineEdit()
         self.end_edit.setPlaceholderText("e.g. 09:30 AM")
         self.end_edit.setText(self.slot.end_time if self.slot else "09:30 AM")
-        form.addRow("End Time:*", self.end_edit)
+        form.addRow("End Time *:", self.end_edit)
 
         self.duration_spin = QSpinBox()
         self.duration_spin.setRange(5, 180)
@@ -85,6 +106,7 @@ class PeriodConfigDialog(QDialog):
         name = self.name_edit.text().strip()
         start = self.start_edit.text().strip()
         end = self.end_edit.text().strip()
+        shift_name = self.shift_combo.currentText()
 
         if not name or not start or not end:
             QMessageBox.warning(self, "Validation Error", "Name, Start Time, and End Time are required.")
@@ -99,7 +121,8 @@ class PeriodConfigDialog(QDialog):
                 start_time=start,
                 end_time=end,
                 duration_minutes=self.duration_spin.value(),
-                is_break=self.break_chk.isChecked()
+                is_break=self.break_chk.isChecked(),
+                shift=shift_name,
             )
         else:
             TimetableRepository.create_period_slot(
@@ -110,8 +133,8 @@ class PeriodConfigDialog(QDialog):
                 end_time=end,
                 duration_minutes=self.duration_spin.value(),
                 is_break=self.break_chk.isChecked(),
-                shift="Morning",
-                academic_year_id=1
+                shift=shift_name,
+                academic_year_id=self.academic_year_id,
             )
 
         self.accept()

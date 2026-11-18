@@ -21,7 +21,8 @@ class ClassTimetablePDFGenerator:
         school_info: dict,
         periods: list,
         matrix: dict,
-        output_path: str
+        output_path: str,
+        academic_year_label: str = "",
     ) -> bool:
         doc = SimpleDocTemplate(
             output_path,
@@ -94,8 +95,9 @@ class ClassTimetablePDFGenerator:
         story.append(Spacer(1, 6))
 
         # Title Badge
+        yr_suffix = f" | YEAR: {academic_year_label}" if academic_year_label else ""
         story.append(Paragraph(
-            f"OFFICIAL CLASS TIMETABLE — {class_name.upper()} (SECTION: {section_name.upper()} | SHIFT: {shift_name.upper()})",
+            f"OFFICIAL CLASS TIMETABLE — {class_name.upper()} (SECTION: {section_name.upper()} | SHIFT: {shift_name.upper()}{yr_suffix})",
             badge_style
         ))
         story.append(Spacer(1, 10))
