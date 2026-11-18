@@ -1,14 +1,27 @@
 """
 EduManage Pro - Exam Schedule Dialog (PySide6)
-Modal dialog to configure examination routines, timetables, room allocation, and marks distribution.
+Modal dialog to configure examination routines, timetables, room allocation,
+granular component marks (Theory, MCQ, Practical, Viva, Attendance), and pass rules.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QComboBox, QDateEdit, QLineEdit, QDoubleSpinBox, QPushButton, QMessageBox
-)
-from PySide6.QtCore import Qt, QDate
 from datetime import date
+
+from PySide6.QtCore import QDate, Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDateEdit,
+    QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
+
 from app.database.connection import SessionLocal
 from app.models.academic import SchoolClass, Subject
 from app.repositories.exam_repository import ExamRepository
@@ -17,8 +30,8 @@ from app.repositories.exam_repository import ExamRepository
 class ExamScheduleDialog(QDialog):
     def __init__(self, parent=None, default_term_id=None):
         super().__init__(parent)
-        self.setWindowTitle("Schedule Exam Routine & Room — EduManage Pro")
-        self.setMinimumWidth(480)
+        self.setWindowTitle("Schedule Exam Routine & Marks Breakdown — EduManage Pro")
+        self.setMinimumWidth(540)
         self.setModal(True)
         self.default_term_id = default_term_id
 
@@ -29,7 +42,7 @@ class ExamScheduleDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        title = QLabel("Add Examination Routine Slot")
+        title = QLabel("Configure Examination Routine Slot & Component Rules")
         title.setStyleSheet("font-size: 15px; font-weight: bold; color: #3b82f6;")
         layout.addWidget(title)
 
@@ -63,18 +76,50 @@ class ExamScheduleDialog(QDialog):
         self.room_edit = QLineEdit("Room 201")
         form.addRow("Exam Hall / Room:", self.room_edit)
 
-        marks_box = QHBoxLayout()
+        # Row 1 of marks
+        marks_box1 = QHBoxLayout()
         self.th_spin = QDoubleSpinBox()
-        self.th_spin.setRange(0, 100)
+        self.th_spin.setRange(0, 200)
         self.th_spin.setValue(70)
         self.mcq_spin = QDoubleSpinBox()
-        self.mcq_spin.setRange(0, 50)
+        self.mcq_spin.setRange(0, 100)
         self.mcq_spin.setValue(30)
-        marks_box.addWidget(QLabel("Theory:"))
-        marks_box.addWidget(self.th_spin)
-        marks_box.addWidget(QLabel("MCQ:"))
-        marks_box.addWidget(self.mcq_spin)
-        form.addRow("Marks Distribution:", marks_box)
+        self.prac_spin = QDoubleSpinBox()
+        self.prac_spin.setRange(0, 100)
+        self.prac_spin.setValue(0)
+        marks_box1.addWidget(QLabel("Theory:"))
+        marks_box1.addWidget(self.th_spin)
+        marks_box1.addWidget(QLabel("MCQ:"))
+        marks_box1.addWidget(self.mcq_spin)
+        marks_box1.addWidget(QLabel("Practical:"))
+        marks_box1.addWidget(self.prac_spin)
+        form.addRow("Written / Prac:", marks_box1)
+
+        # Row 2 of marks: Viva, Attendance, Pass Marks
+        marks_box2 = QHBoxLayout()
+        self.viva_spin = QDoubleSpinBox()
+        self.viva_spin.setRange(0, 50)
+        self.viva_spin.setValue(0)
+        self.att_spin = QDoubleSpinBox()
+        self.att_spin.setRange(0, 50)
+        self.att_spin.setValue(0)
+        self.pass_spin = QDoubleSpinBox()
+        self.pass_spin.setRange(0, 200)
+        self.pass_spin.setValue(33)
+        marks_box2.addWidget(QLabel("Viva:"))
+        marks_box2.addWidget(self.viva_spin)
+        marks_box2.addWidget(QLabel("Attendance:"))
+        marks_box2.addWidget(self.att_spin)
+        marks_box2.addWidget(QLabel("Pass Marks:"))
+        marks_box2.addWidget(self.pass_spin)
+        form.addRow("Viva / Att / Pass:", marks_box2)
+
+        flags_box = QHBoxLayout()
+        self.chk_comp_pass = QCheckBox("Require Component Pass")
+        self.chk_optional = QCheckBox("Optional (4th) Subject")
+        flags_box.addWidget(self.chk_comp_pass)
+        flags_box.addWidget(self.chk_optional)
+        form.addRow("Evaluation Flags:", flags_box)
 
         layout.addLayout(form)
 
@@ -135,24 +180,46 @@ class ExamScheduleDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Please select term, class, and subject.")
             return
 
+        total_full = (
+            self.th_spin.value()
+            + self.mcq_spin.value()
+            + self.prac_spin.value()
+            + self.viva_spin.value()
+            + self.att_spin.value()
+        )
+        if total_full <= 0:
+            QMessageBox.warning(self, "Validation Error", "Total full marks must be greater than zero.")
+            return
+        if self.pass_spin.value() > total_full:
+            QMessageBox.warning(self, "Validation Error", "Pass marks cannot exceed Full Marks.")
+            return
+
         qdate = self.date_edit.date()
         exam_date = date(qdate.year(), qdate.month(), qdate.day())
 
         db = SessionLocal()
         try:
-            ExamRepository.create_or_update_schedule(db, {
-                "exam_term_id": term_id,
-                "class_id": class_id,
-                "subject_id": subject_id,
-                "exam_date": exam_date,
-                "start_time": self.start_time_edit.text().strip(),
-                "end_time": self.end_time_edit.text().strip(),
-                "room_number": self.room_edit.text().strip() or "Main Hall",
-                "full_marks": self.th_spin.value() + self.mcq_spin.value(),
-                "pass_marks": 33.0,
-                "theory_full": self.th_spin.value(),
-                "mcq_full": self.mcq_spin.value()
-            })
+            ExamRepository.create_or_update_schedule(
+                db,
+                {
+                    "exam_term_id": term_id,
+                    "class_id": class_id,
+                    "subject_id": subject_id,
+                    "exam_date": exam_date,
+                    "start_time": self.start_time_edit.text().strip(),
+                    "end_time": self.end_time_edit.text().strip(),
+                    "room_number": self.room_edit.text().strip() or "Main Hall",
+                    "full_marks": total_full,
+                    "pass_marks": self.pass_spin.value(),
+                    "theory_full": self.th_spin.value(),
+                    "mcq_full": self.mcq_spin.value(),
+                    "practical_full": self.prac_spin.value(),
+                    "viva_full": self.viva_spin.value(),
+                    "attendance_full": self.att_spin.value(),
+                    "require_component_pass": self.chk_comp_pass.isChecked(),
+                    "is_optional_eligible": self.chk_optional.isChecked(),
+                },
+            )
             QMessageBox.information(self, "Routine Saved", "Exam schedule slot successfully saved.")
             self.accept()
         finally:

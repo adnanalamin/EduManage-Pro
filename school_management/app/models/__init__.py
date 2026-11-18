@@ -93,7 +93,24 @@ from app.models.accounting import (
     AccountBudget,
     FinancialAuditLog,
 )
-from app.models.exam import ExamTerm, GradingScale, ExamSchedule, StudentMark, ExamResultSummary
+from app.models.exam import (
+    ResultWorkflowStatus,
+    ExamType,
+    GradingSystem,
+    GradingScaleRule,
+    ExamTerm,
+    GradingScale,
+    ExamSchedule,
+    StudentMark,
+    ExamResultSummary,
+    ExamResultBatch,
+    ExamResultHistory,
+    QuestionBankItem,
+    ExamPaper,
+    ExamPaperQuestion,
+    MCQAttempt,
+    MCQAttemptAnswer,
+)
 from app.models.timetable import PeriodSlot, TimetableEntry
 from app.models.library import BookCategory, Book, LibraryMember, BookCirculation
 from app.models.transport import Vehicle, TransportRoute, TransportStop, TransportPassenger
@@ -196,11 +213,22 @@ __all__ = [
     "AccountTransaction",
     "AccountBudget",
     "FinancialAuditLog",
+    "ResultWorkflowStatus",
+    "ExamType",
+    "GradingSystem",
+    "GradingScaleRule",
     "ExamTerm",
     "GradingScale",
     "ExamSchedule",
     "StudentMark",
     "ExamResultSummary",
+    "ExamResultBatch",
+    "ExamResultHistory",
+    "QuestionBankItem",
+    "ExamPaper",
+    "ExamPaperQuestion",
+    "MCQAttempt",
+    "MCQAttemptAnswer",
     "PeriodSlot",
     "TimetableEntry",
     "BookCategory",

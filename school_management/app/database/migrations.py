@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 10
+CURRENT_SCHEMA_VERSION = 11
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -91,6 +91,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
         "description": (
             "Enterprise Payroll module: PayrollStructures, EmployeeLoans & Advances, PayrollLoanRepayments, "
             "PayrollPeriodRuns with locking, PayrollPayslips, and audit-safe PayrollReversals"
+        ),
+    },
+    {
+        "version": 11,
+        "description": (
+            "Advanced Examination Engine: ExamTypes, customizable GradingSystems & GradingScaleRules, "
+            "Viva & Attendance mark components, CGPA & section positions, ExamResultBatches (Verify/Approve/Publish lock), "
+            "immutable ExamResultHistory, QuestionBankItems, and MCQ/Written ExamPapers & Attempts"
         ),
     },
 ]
