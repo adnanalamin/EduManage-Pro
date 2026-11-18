@@ -78,6 +78,7 @@ class AccountingService:
             # Expense Heads
             {"name": "Teacher Salaries & Honorarium", "code": "EXP-TSAL", "type": "Expense", "description": "Monthly payroll disbursements for academic teachers", "is_system": True},
             {"name": "Staff Salaries & Allowances", "code": "EXP-SSAL", "type": "Expense", "description": "Payroll for accountants, librarians, security, and support staff", "is_system": True},
+            {"name": "Employee Loans & Salary Advances", "code": "EXP-LOAN", "type": "Expense", "description": "Disbursed staff and teacher loans and salary advances recovered via payroll", "is_system": True},
             {"name": "Fee Refunds & Reversals", "code": "EXP-RFND", "type": "Expense", "description": "Authorized student fee refunds, advance withdrawals, and adjustments", "is_system": True},
             {"name": "Electricity & Water Utilities", "code": "EXP-UTIL", "type": "Expense", "description": "Power, generator fuel, water, and municipal utility bills", "is_system": True},
             {"name": "Internet, IT & Software Subscriptions", "code": "EXP-IT", "type": "Expense", "description": "Broadband, domain hosting, SMS gateway, and computer lab licenses", "is_system": False},
@@ -228,6 +229,7 @@ class AccountingService:
         reason: str,
         actor_username: str = "admin",
         reversal_date: Optional[date] = None,
+        commit: bool = True,
     ) -> Tuple[Optional[AccountTransaction], str]:
         """
         Non-destructive voucher reversal. Marks the original voucher `Reversed` and posts
@@ -321,8 +323,11 @@ class AccountingService:
             entity_id=str(orig.id),
             commit=False,
         )
-        db.commit()
-        db.refresh(contra_tx)
+        if commit:
+            db.commit()
+            db.refresh(contra_tx)
+        else:
+            db.flush()
         return contra_tx, f"Voucher {orig.voucher_no} reversed cleanly via contra-entry {rev_voucher}."
 
     # -------------------------------------------------------------

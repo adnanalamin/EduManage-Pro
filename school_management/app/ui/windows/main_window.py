@@ -26,6 +26,7 @@ from app.ui.pages.hostel_page import HostelPage
 from app.ui.pages.hr_management_page import HRManagementPage
 from app.ui.pages.library_page import LibraryPage
 from app.ui.pages.notice_page import NoticePage
+from app.ui.pages.payroll_page import PayrollPage
 from app.ui.pages.reports_page import ReportsPage
 from app.ui.pages.security_settings_page import SecuritySettingsPage
 from app.ui.pages.staff_management_page import StaffManagementPage
@@ -152,10 +153,14 @@ class MainWindow(QMainWindow):
         self.admission_page = AdmissionPage(self)
         self.stack.addWidget(self.admission_page)
 
+        self.payroll_page = PayrollPage(self)
+        self.stack.addWidget(self.payroll_page)
+
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
             "admissions": 18,
+            "payroll": 19,
             "teachers": 2,
             "staff": 3,
             "academics": 4,
@@ -257,6 +262,8 @@ class MainWindow(QMainWindow):
                 self.hr_page.refresh_all()
             elif module_key == "admissions":
                 self.admission_page.refresh_all()
+            elif module_key == "payroll":
+                self.payroll_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme

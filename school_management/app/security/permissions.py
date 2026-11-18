@@ -54,6 +54,14 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("salary", "Confidential Compensation & Salary History", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT", "MANAGE"]),
         ("reports", "HR Analytics & Reports", ["VIEW", "PRINT", "EXPORT"]),
     ],
+    "PAYROLL": [
+        ("structures", "Salary Structures, Allowances, PF & Tax Configuration", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("processing", "Monthly Payroll Runs, Finalization & Period Locking", ["VIEW", "CREATE", "EDIT", "APPROVE", "MANAGE"]),
+        ("disbursement", "Salary Disbursement & Payment Posting", ["VIEW", "CREATE", "PRINT", "EXPORT", "APPROVE", "MANAGE"]),
+        ("loans", "Employee Loans & Salary Advances", ["VIEW", "CREATE", "EDIT", "APPROVE", "MANAGE"]),
+        ("reversals", "Audit-Safe Payroll Reversals & Adjustments", ["VIEW", "CREATE", "APPROVE", "REFUND", "MANAGE"]),
+        ("reports", "Salary Slips, Payroll Register & Employee Payment History", ["VIEW", "PRINT", "EXPORT"]),
+    ],
     "ACADEMICS": [
         ("structure", "Academic Years, Classes, Sections, Groups, Shifts & Rooms", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
         ("curriculum", "Departments, Subjects, Optional Subjects & Teacher Assignments", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
@@ -122,6 +130,7 @@ SIDEBAR_MODULE_PERMISSION_MAP: Dict[str, str] = {
     "teachers": "TEACHERS",
     "staff": "STAFF",
     "hr": "HR",
+    "payroll": "PAYROLL",
     "academics": "ACADEMICS",
     "attendance": "ATTENDANCE",
     "fees": "FEES",
@@ -247,6 +256,7 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "hr.salary.EXPORT",
                     "hr.reports.VIEW",
                     "hr.reports.EXPORT",
+                    "payroll.",
                 )
             )
         ]

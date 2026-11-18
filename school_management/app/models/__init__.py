@@ -111,6 +111,15 @@ from app.models.admission import (
     AdmissionFeePayment,
     AdmissionStatusHistory,
 )
+from app.models.payroll import (
+    PayrollPeriodStatus,
+    PayrollStructure,
+    EmployeeLoan,
+    PayrollPeriodRun,
+    PayrollPayslip,
+    PayrollLoanRepayment,
+    PayrollReversal,
+)
 
 __all__ = [
     "Base",
@@ -220,4 +229,11 @@ __all__ = [
     "AdmissionInterview",
     "AdmissionFeePayment",
     "AdmissionStatusHistory",
+    "PayrollPeriodStatus",
+    "PayrollStructure",
+    "EmployeeLoan",
+    "PayrollPeriodRun",
+    "PayrollPayslip",
+    "PayrollLoanRepayment",
+    "PayrollReversal",
 ]
