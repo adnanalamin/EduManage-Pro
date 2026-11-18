@@ -125,7 +125,23 @@ from app.models.library import (
     LibraryFine,
     BookIncident,
 )
-from app.models.transport import Vehicle, TransportRoute, TransportStop, TransportPassenger
+from app.models.transport import (
+    VEHICLE_TYPES,
+    DOCUMENT_TYPES,
+    MAINTENANCE_SERVICE_TYPES,
+    GPS_PROVIDER_TYPES,
+    Vehicle,
+    TransportRoute,
+    TransportStop,
+    TransportPassenger,
+    TransportFeeCharge,
+    TransportFuelLog,
+    TransportMaintenanceLog,
+    TransportInsurance,
+    TransportDocument,
+    TransportGPSDevice,
+    TransportGPSPing,
+)
 from app.models.hostel import HostelBlock, HostelRoom, HostelAllocation, HostelGatePass
 from app.models.inventory import InventoryCategory, InventoryItem, InventoryTransaction
 from app.models.notice import SchoolNotice, SchoolEvent
@@ -255,10 +271,21 @@ __all__ = [
     "BookCirculation",
     "LibraryFine",
     "BookIncident",
+    "VEHICLE_TYPES",
+    "DOCUMENT_TYPES",
+    "MAINTENANCE_SERVICE_TYPES",
+    "GPS_PROVIDER_TYPES",
     "Vehicle",
     "TransportRoute",
     "TransportStop",
     "TransportPassenger",
+    "TransportFeeCharge",
+    "TransportFuelLog",
+    "TransportMaintenanceLog",
+    "TransportInsurance",
+    "TransportDocument",
+    "TransportGPSDevice",
+    "TransportGPSPing",
     "HostelBlock",
     "HostelRoom",
     "HostelAllocation",

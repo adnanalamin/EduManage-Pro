@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 13
+CURRENT_SCHEMA_VERSION = 14
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -114,6 +114,14 @@ MIGRATIONS: List[Dict[str, Any]] = [
         "description": (
             "Advanced Library Management: Normalized LibraryAuthors, LibraryPublishers, LibraryShelves, "
             "barcoded/QR BookCopies, BookReservations, auditable LibraryFines, and Lost/Damaged BookIncidents"
+        ),
+    },
+    {
+        "version": 14,
+        "description": (
+            "Complete Transport Management: Fleet vehicles (Bus/Van/Microbus/Other), registrations & crew, "
+            "routes & pickup points, commuter fees, fuel logs, maintenance logs & reminders, insurance policies, "
+            "compliance document vault, and hardware-optional GPS integration tables"
         ),
     },
 ]

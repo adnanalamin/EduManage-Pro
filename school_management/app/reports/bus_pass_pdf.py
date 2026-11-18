@@ -64,6 +64,10 @@ class BusPassGenerator:
             passenger_name = passenger.teacher.full_name
             class_roll = passenger.teacher.designation or "Faculty"
             emg_phone = passenger.teacher.phone or ""
+        elif passenger.staff:
+            passenger_name = passenger.staff.full_name
+            class_roll = passenger.staff.position or "Staff"
+            emg_phone = passenger.staff.emergency_contact_phone or passenger.staff.phone or ""
 
         initials = "".join([part[0] for part in passenger_name.split()[:2]]).upper() or "BUS"
         c.setFillColor(colors.HexColor("#B45309"))

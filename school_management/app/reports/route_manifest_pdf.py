@@ -151,6 +151,10 @@ class RouteManifestPDFGenerator:
                 name = p.teacher.full_name
                 affil = p.teacher.designation or "Faculty"
                 emg = p.teacher.phone or "-"
+            elif p.staff:
+                name = p.staff.full_name
+                affil = p.staff.position or "Staff"
+                emg = p.staff.emergency_contact_phone or p.staff.phone or "-"
 
             stop_name = p.stop.stop_name if p.stop else "Campus Gate"
             seat_no = p.seat_number or "-"

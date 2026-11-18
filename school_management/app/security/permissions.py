@@ -104,7 +104,11 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
         ("reports", "Borrowing History, Fine & Inventory Reports", ["VIEW", "PRINT", "EXPORT"]),
     ],
     "TRANSPORT": [
-        ("fleet", "Vehicles, Routes & Passenger Allocations", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("fleet", "Vehicles, Registrations, Crew & Passenger Allocations", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT", "MANAGE"]),
+        ("routes", "Transit Routes & Pickup Points", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "MANAGE"]),
+        ("fees", "Transport Fee Billing & Collection", ["VIEW", "CREATE", "EDIT", "PRINT", "EXPORT", "MANAGE"]),
+        ("maintenance", "Fuel, Maintenance Logs, Insurance, Documents & Reminders", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT", "MANAGE"]),
+        ("gps", "Optional GPS Device Registry & Telemetry Feeds", ["VIEW", "CREATE", "EDIT", "MANAGE"]),
     ],
     "HOSTEL": [
         ("dormitory", "Hostel Blocks, Rooms & Gate Passes", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "MANAGE"]),
@@ -277,6 +281,7 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "hr.reports.VIEW",
                     "hr.reports.EXPORT",
                     "payroll.",
+                    "transport.fees.",
                 )
             )
         ]
@@ -311,6 +316,7 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "certificates.credentials.CREATE",
                     "certificates.credentials.PRINT",
                     "transport.fleet.VIEW",
+                    "transport.routes.VIEW",
                     "hostel.dormitory.VIEW",
                 )
             )
