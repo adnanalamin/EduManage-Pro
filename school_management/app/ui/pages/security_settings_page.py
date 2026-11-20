@@ -1,34 +1,115 @@
 """
-EduManage Pro - Enterprise Security, RBAC Permission Matrix & Settings Page (PySide6)
-Replaces the Settings placeholder with full Super Admin controls:
-1. User Account Management (create, activate/deactivate, unlock, admin password reset, reset token)
-2. Roles & Hierarchical Permission Matrix UI (Module -> Feature -> Action: VIEW..MANAGE, role cloning, global permission disable)
-3. Login History & User Activity Audit Viewer
-4. Session Timeout & Security Policy Controls
+EduManage Pro - Enterprise Security Dashboard, RBAC Permission Matrix & Audit Console (PySide6)
+Features:
+1. Security Dashboard:
+   - Failed Logins & Locked Accounts (with Unlock)
+   - Active Sessions Registry (with Admin Force Revoke)
+   - Suspicious Activity Alerts (with Acknowledge / Resolve triage)
+   - Recent Administrator Actions (with BEFORE / AFTER diff inspector)
+2. User Account Management (create, activate/deactivate, unlock, admin password reset, reset token)
+3. Roles & Hierarchical Permission Matrix UI (Module -> Feature -> Action: VIEW..MANAGE, role cloning, global switch)
+4. Full Audit Trail (WHO / WHAT / WHEN / MODULE / RECORD / BEFORE / AFTER) & Formula-Safe CSV Export
+5. Session Timeout & Security Policy Controls
 """
 
+import json
 from typing import Dict, List, Optional, Tuple
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QComboBox,
-    QListWidget, QListWidgetItem, QCheckBox, QMessageBox, QFrame, QSpinBox,
-    QFormLayout, QSplitter
-)
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from sqlalchemy.orm import joinedload
 
 from app.config.settings import settings
 from app.database.connection import SessionLocal
-from app.models.user import User, Role, Permission
+from app.models.activity import ActivityLog
+from app.models.user import Permission, Role, User
 from app.security.permissions import ALL_ACTIONS
 from app.security.session import session as app_session
 from app.services.auth_service import AuthService
+from app.services.security_dashboard_service import SecurityDashboardService
 from app.ui.dialogs.security_dialogs import (
     AdminResetResultDialog,
     ChangePasswordDialog,
     CreateRoleDialog,
     CreateUserDialog,
 )
+
+
+def _pretty_json(raw: Optional[str]) -> str:
+    if not raw:
+        return "—"
+    try:
+        parsed = json.loads(raw)
+        return json.dumps(parsed, indent=2, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        return str(raw)
+
+
+class AuditDiffDialog(QDialog):
+    """Displays complete WHO/WHAT/WHEN/MODULE/RECORD/BEFORE/AFTER audit inspection."""
+
+    def __init__(self, log_entry: ActivityLog, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Audit Detail — {log_entry.action} (#{log_entry.id})")
+        self.resize(740, 520)
+        root = QVBoxLayout(self)
+        root.setSpacing(10)
+
+        meta = QLabel(
+            f"<b>WHO:</b> {log_entry.who} &nbsp;|&nbsp; "
+            f"<b>WHAT:</b> {log_entry.action} &nbsp;|&nbsp; "
+            f"<b>WHEN (UTC):</b> {log_entry.created_at.strftime('%Y-%m-%d %H:%M:%S') if log_entry.created_at else '-'}<br>"
+            f"<b>MODULE:</b> {log_entry.module} &nbsp;|&nbsp; "
+            f"<b>RECORD:</b> {log_entry.record_ref} &nbsp;|&nbsp; "
+            f"<b>IP:</b> {log_entry.ip_address or '-'}"
+        )
+        meta.setWordWrap(True)
+        meta.setStyleSheet("background: #1e293b; color: #e2e8f0; padding: 10px; border-radius: 6px;")
+        root.addWidget(meta)
+
+        desc = QLabel(f"Description: {log_entry.description}")
+        desc.setWordWrap(True)
+        root.addWidget(desc)
+
+        row = QHBoxLayout()
+        for title, txt in (("BEFORE Snapshot", _pretty_json(log_entry.before_data)), ("AFTER Snapshot", _pretty_json(log_entry.after_data))):
+            col = QVBoxLayout()
+            col.addWidget(QLabel(f"<b>{title}</b>"))
+            edit = QTextEdit()
+            edit.setReadOnly(True)
+            edit.setPlainText(txt)
+            col.addWidget(edit)
+            row.addLayout(col)
+        root.addLayout(row)
+
+        btn_close = QPushButton("Close")
+        btn_close.clicked.connect(self.accept)
+        root.addWidget(btn_close, alignment=Qt.AlignRight)
 
 
 class SecuritySettingsPage(QWidget):
@@ -45,10 +126,10 @@ class SecuritySettingsPage(QWidget):
 
         header = QHBoxLayout()
         title_col = QVBoxLayout()
-        title = QLabel("Security, Users & Access Control")
+        title = QLabel("Security Hardening Dashboard, RBAC & Audit Center")
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: #f8fafc;")
         sub = QLabel(
-            "Enterprise RBAC, Module → Feature → Action Permission Matrix, Account Lifecycle & Login Audit"
+            "Live Security Dashboard • Active Sessions • Failed Logins & Alerts • Full WHO/WHAT/WHEN/MODULE/RECORD/BEFORE/AFTER Audit Trail"
         )
         sub.setStyleSheet("font-size: 12px; color: #94a3b8;")
         title_col.addWidget(title)
@@ -56,17 +137,150 @@ class SecuritySettingsPage(QWidget):
         header.addLayout(title_col)
         header.addStretch()
 
-        btn_refresh = QPushButton("↻ Refresh")
+        btn_refresh = QPushButton("↻ Refresh Security Data")
         btn_refresh.clicked.connect(self.refresh_all)
         header.addWidget(btn_refresh)
         root.addLayout(header)
 
         self.tabs = QTabWidget()
+        self.tabs.addTab(self._build_security_dashboard_tab(), "🛡️ Security Dashboard")
         self.tabs.addTab(self._build_users_tab(), "Users & Accounts")
         self.tabs.addTab(self._build_matrix_tab(), "Roles & Permission Matrix")
-        self.tabs.addTab(self._build_audit_tab(), "Login History & Activity Audit")
-        self.tabs.addTab(self._build_policies_tab(), "My Account & Session Policies")
+        self.tabs.addTab(self._build_audit_tab(), "Audit Logs & Login History")
+        self.tabs.addTab(self._build_policies_tab(), "My Account & Security Policies")
         root.addWidget(self.tabs)
+
+    # ------------------------------------------------------------------
+    # Tab 0: Security Dashboard
+    # ------------------------------------------------------------------
+    def _build_security_dashboard_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(12)
+
+        # KPI Row
+        kpi_row = QHBoxLayout()
+        self.kpi_labels: Dict[str, QLabel] = {}
+        cards = [
+            ("failed_logins_24h", "Failed Logins (24h)", "#ef4444"),
+            ("locked_accounts", "Locked Accounts", "#f59e0b"),
+            ("active_sessions", "Active Sessions", "#2563eb"),
+            ("open_alerts", "Open Security Alerts", "#dc2626"),
+            ("admin_actions_24h", "Admin Actions (24h)", "#16a34a"),
+        ]
+        for key, caption, accent in cards:
+            card = QFrame()
+            card.setStyleSheet(
+                f"background: #1e293b; border: 1px solid #334155; border-left: 4px solid {accent}; "
+                "border-radius: 8px; padding: 10px;"
+            )
+            cl = QVBoxLayout(card)
+            cl.setSpacing(4)
+            lbl_cap = QLabel(caption)
+            lbl_cap.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 600;")
+            lbl_val = QLabel("0")
+            lbl_val.setFont(QFont("Segoe UI", 18, QFont.Bold))
+            lbl_val.setStyleSheet("color: #f8fafc;")
+            cl.addWidget(lbl_cap)
+            cl.addWidget(lbl_val)
+            kpi_row.addWidget(card)
+            self.kpi_labels[key] = lbl_val
+        layout.addLayout(kpi_row)
+
+        # 2x2 Quadrant Grid via Splitters
+        main_split = QSplitter(Qt.Vertical)
+
+        # Top Half: Failed Logins | Active Sessions
+        top_split = QSplitter(Qt.Horizontal)
+
+        # Panel A: Failed Logins & Locked Accounts
+        failed_box = QFrame()
+        fl_lay = QVBoxLayout(failed_box)
+        fl_hdr = QHBoxLayout()
+        fl_hdr.addWidget(QLabel("<b>Failed Logins & Lockouts</b>"))
+        fl_hdr.addStretch()
+        self.btn_dash_unlock = QPushButton("Unlock Selected Account")
+        self.btn_dash_unlock.clicked.connect(self._handle_dash_unlock_user)
+        fl_hdr.addWidget(self.btn_dash_unlock)
+        fl_lay.addLayout(fl_hdr)
+
+        self.dash_failed_table = QTableWidget(0, 5)
+        self.dash_failed_table.setHorizontalHeaderLabels(["Time (UTC)", "Username Attempted", "Status", "Reason", "IP Address"])
+        self.dash_failed_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.dash_failed_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.dash_failed_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        fl_lay.addWidget(self.dash_failed_table)
+        top_split.addWidget(failed_box)
+
+        # Panel B: Active Sessions
+        sess_box = QFrame()
+        ss_lay = QVBoxLayout(sess_box)
+        ss_hdr = QHBoxLayout()
+        ss_hdr.addWidget(QLabel("<b>Active Sessions</b>"))
+        ss_hdr.addStretch()
+        self.btn_revoke_session = QPushButton("Revoke Selected Session")
+        self.btn_revoke_session.setStyleSheet("background: #dc2626; color: white; padding: 4px 10px; border-radius: 4px;")
+        self.btn_revoke_session.clicked.connect(self._handle_revoke_session)
+        ss_hdr.addWidget(self.btn_revoke_session)
+        ss_lay.addLayout(ss_hdr)
+
+        self.dash_sessions_table = QTableWidget(0, 6)
+        self.dash_sessions_table.setHorizontalHeaderLabels(["Username", "Role", "Workstation", "IP", "Last Activity", "Expires At"])
+        self.dash_sessions_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.dash_sessions_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.dash_sessions_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        ss_lay.addWidget(self.dash_sessions_table)
+        top_split.addWidget(sess_box)
+        main_split.addWidget(top_split)
+
+        # Bottom Half: Suspicious Activity Alerts | Recent Administrator Actions
+        bot_split = QSplitter(Qt.Horizontal)
+
+        # Panel C: Suspicious Activity Alerts
+        alert_box = QFrame()
+        al_lay = QVBoxLayout(alert_box)
+        al_hdr = QHBoxLayout()
+        al_hdr.addWidget(QLabel("<b>Suspicious Activity Alerts</b>"))
+        al_hdr.addStretch()
+        self.btn_ack_alert = QPushButton("Acknowledge")
+        self.btn_ack_alert.clicked.connect(lambda: self._handle_resolve_alert("ACKNOWLEDGED"))
+        self.btn_res_alert = QPushButton("Resolve Alert")
+        self.btn_res_alert.setStyleSheet("background: #16a34a; color: white; padding: 4px 10px; border-radius: 4px;")
+        self.btn_res_alert.clicked.connect(lambda: self._handle_resolve_alert("RESOLVED"))
+        al_hdr.addWidget(self.btn_ack_alert)
+        al_hdr.addWidget(self.btn_res_alert)
+        al_lay.addLayout(al_hdr)
+
+        self.dash_alerts_table = QTableWidget(0, 6)
+        self.dash_alerts_table.setHorizontalHeaderLabels(["Time (UTC)", "Severity", "Type", "User / Actor", "Status", "Description"])
+        self.dash_alerts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.dash_alerts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.dash_alerts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        al_lay.addWidget(self.dash_alerts_table)
+        bot_split.addWidget(alert_box)
+
+        # Panel D: Recent Administrator Actions
+        adm_box = QFrame()
+        ad_lay = QVBoxLayout(adm_box)
+        ad_hdr = QHBoxLayout()
+        ad_hdr.addWidget(QLabel("<b>Recent Administrator Actions (WHO/WHAT/WHEN/MODULE/RECORD)</b>"))
+        ad_hdr.addStretch()
+        btn_inspect_adm = QPushButton("Inspect Before/After")
+        btn_inspect_adm.clicked.connect(lambda: self._inspect_selected_audit(self.dash_admin_table))
+        ad_hdr.addWidget(btn_inspect_adm)
+        ad_lay.addLayout(ad_hdr)
+
+        self.dash_admin_table = QTableWidget(0, 6)
+        self.dash_admin_table.setHorizontalHeaderLabels(["WHEN (UTC)", "WHO", "WHAT", "MODULE", "RECORD", "BEFORE → AFTER"])
+        self.dash_admin_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.dash_admin_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.dash_admin_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        ad_lay.addWidget(self.dash_admin_table)
+        bot_split.addWidget(adm_box)
+
+        main_split.addWidget(bot_split)
+        layout.addWidget(main_split, 1)
+        return tab
 
     # ------------------------------------------------------------------
     # Tab 1: Users & Account Lifecycle
@@ -127,7 +341,6 @@ class SecuritySettingsPage(QWidget):
         layout = QHBoxLayout(tab)
         layout.setSpacing(12)
 
-        # Left column: Role selector + create/clone controls
         left = QFrame()
         left.setFixedWidth(250)
         left_lay = QVBoxLayout(left)
@@ -152,7 +365,6 @@ class SecuritySettingsPage(QWidget):
         left_lay.addLayout(role_btns)
         layout.addWidget(left)
 
-        # Right column: Hierarchical Permission Matrix
         right = QVBoxLayout()
         right.setSpacing(8)
 
@@ -177,7 +389,6 @@ class SecuritySettingsPage(QWidget):
         filter_bar.addWidget(self.btn_save_matrix)
         right.addLayout(filter_bar)
 
-        # Global Permission Disable/Enable strip (Super Admin)
         global_bar = QHBoxLayout()
         global_bar.addWidget(QLabel("Global Permission Switch:"))
         self.perm_toggle_combo = QComboBox()
@@ -192,7 +403,6 @@ class SecuritySettingsPage(QWidget):
         global_bar.addStretch()
         right.addLayout(global_bar)
 
-        # Matrix Columns: Module, Feature, + 10 Actions
         headers = ["Module", "Feature"] + ALL_ACTIONS
         self.matrix_table = QTableWidget(0, len(headers))
         self.matrix_table.setHorizontalHeaderLabels(headers)
@@ -207,7 +417,7 @@ class SecuritySettingsPage(QWidget):
         return tab
 
     # ------------------------------------------------------------------
-    # Tab 3: Login History & Activity Audit
+    # Tab 3: Structured Audit Logs (WHO/WHAT/WHEN/MODULE/RECORD/BEFORE/AFTER) & Login History
     # ------------------------------------------------------------------
     def _build_audit_tab(self) -> QWidget:
         tab = QWidget()
@@ -216,7 +426,7 @@ class SecuritySettingsPage(QWidget):
 
         bar = QHBoxLayout()
         self.audit_user_filter = QLineEdit()
-        self.audit_user_filter.setPlaceholderText("Filter by username...")
+        self.audit_user_filter.setPlaceholderText("Filter by WHO / username...")
         self.audit_user_filter.textChanged.connect(self._load_audit_tables)
 
         self.login_status_filter = QComboBox()
@@ -225,31 +435,44 @@ class SecuritySettingsPage(QWidget):
         )
         self.login_status_filter.currentTextChanged.connect(self._load_audit_tables)
 
+        self.audit_admin_only = QCheckBox("Admin Actions Only")
+        self.audit_admin_only.toggled.connect(self._load_audit_tables)
+
+        btn_inspect = QPushButton("Inspect Before / After")
+        btn_inspect.clicked.connect(lambda: self._inspect_selected_audit(self.activity_table))
+
+        btn_export = QPushButton("Export Safe CSV")
+        btn_export.clicked.connect(self._export_audit_csv)
+
         bar.addWidget(QLabel("Username:"))
         bar.addWidget(self.audit_user_filter)
         bar.addWidget(QLabel("Login Status:"))
         bar.addWidget(self.login_status_filter)
+        bar.addWidget(self.audit_admin_only)
         bar.addStretch()
+        bar.addWidget(btn_inspect)
+        bar.addWidget(btn_export)
         layout.addLayout(bar)
 
         splitter = QSplitter(Qt.Vertical)
+
+        self.activity_table = QTableWidget(0, 8)
+        self.activity_table.setHorizontalHeaderLabels(
+            ["WHEN (UTC)", "WHO", "WHAT", "MODULE", "RECORD", "BEFORE", "AFTER", "DESCRIPTION"]
+        )
+        self.activity_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.activity_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.activity_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
         self.login_hist_table = QTableWidget(0, 7)
         self.login_hist_table.setHorizontalHeaderLabels(
             ["Login Time (UTC)", "Username", "Status", "Reason", "IP Address", "Workstation", "Logout / Timeout"]
         )
         self.login_hist_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.login_hist_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.login_hist_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
-        self.activity_table = QTableWidget(0, 6)
-        self.activity_table.setHorizontalHeaderLabels(
-            ["Timestamp (UTC)", "Username", "Module", "Action", "Severity", "Description"]
-        )
-        self.activity_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.activity_table.setEditTriggers(QTableWidget.NoEditTriggers)
-
-        splitter.addWidget(self.login_hist_table)
         splitter.addWidget(self.activity_table)
+        splitter.addWidget(self.login_hist_table)
         layout.addWidget(splitter)
         return tab
 
@@ -285,6 +508,8 @@ class SecuritySettingsPage(QWidget):
         form.addRow("Assigned Role:", self.lbl_current_role)
         form.addRow("Max Failed Login Attempts:", QLabel(str(settings.MAX_LOGIN_ATTEMPTS)))
         form.addRow("Account Lockout Duration:", QLabel(f"{settings.LOCKOUT_DURATION_SECONDS} seconds"))
+        form.addRow("Max Concurrent Sessions:", QLabel(str(settings.MAX_CONCURRENT_SESSIONS)))
+        form.addRow("Encrypted Backups Required:", QLabel("Enforced (PBKDF2-SHA256 + Fernet AES)"))
         form.addRow("Idle Session Timeout:", self.timeout_spin)
         form.addRow("", btn_apply_timeout)
         form.addRow("Password Security:", btn_change_my_pw)
@@ -299,6 +524,7 @@ class SecuritySettingsPage(QWidget):
     # ------------------------------------------------------------------
     def refresh_all(self):
         self._apply_admin_controls()
+        self._load_security_dashboard()
         self._load_users()
         self._load_roles_and_modules()
         self._load_audit_tables()
@@ -308,6 +534,7 @@ class SecuritySettingsPage(QWidget):
         is_super = app_session.is_super_admin()
         can_users = is_super or app_session.has_permission("security.users.MANAGE")
         can_roles = is_super or app_session.has_permission("security.roles.MANAGE")
+        can_audit = is_super or app_session.has_permission("security.audit.VIEW")
 
         for b in [
             self.btn_add_user,
@@ -315,8 +542,13 @@ class SecuritySettingsPage(QWidget):
             self.btn_unlock_user,
             self.btn_reset_pw,
             self.btn_issue_token,
+            self.btn_dash_unlock,
+            self.btn_revoke_session,
         ]:
             b.setEnabled(can_users)
+
+        for b in [self.btn_ack_alert, self.btn_res_alert]:
+            b.setEnabled(can_audit or can_users)
 
         for b in [
             self.btn_create_role,
@@ -329,6 +561,165 @@ class SecuritySettingsPage(QWidget):
 
         self.btn_disable_perm.setEnabled(is_super)
         self.btn_enable_perm.setEnabled(is_super)
+
+    def _load_security_dashboard(self):
+        db = SessionLocal()
+        try:
+            summary = SecurityDashboardService.get_dashboard_summary(db)
+            for k, lbl in self.kpi_labels.items():
+                lbl.setText(str(summary.get(k, 0)))
+
+            failed = SecurityDashboardService.get_failed_logins(db, limit=80)
+            self.dash_failed_table.setRowCount(len(failed))
+            for idx, h in enumerate(failed):
+                vals = [
+                    h.login_at.strftime("%Y-%m-%d %H:%M:%S") if h.login_at else "-",
+                    h.username_attempted,
+                    h.status,
+                    h.failure_reason or "—",
+                    h.ip_address or "-",
+                ]
+                for c, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setData(Qt.UserRole, h.user_id)
+                    if "LOCKED" in h.status:
+                        it.setForeground(QColor("#f59e0b"))
+                    self.dash_failed_table.setItem(idx, c, it)
+
+            sessions = SecurityDashboardService.get_active_sessions(db, limit=80)
+            self.dash_sessions_table.setRowCount(len(sessions))
+            for idx, s in enumerate(sessions):
+                vals = [
+                    s.username,
+                    s.role_name or "-",
+                    s.workstation or "-",
+                    s.ip_address or "-",
+                    s.last_activity_at.strftime("%Y-%m-%d %H:%M:%S") if s.last_activity_at else "-",
+                    s.expires_at.strftime("%Y-%m-%d %H:%M:%S") if s.expires_at else "-",
+                ]
+                for c, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setData(Qt.UserRole, s.session_id)
+                    self.dash_sessions_table.setItem(idx, c, it)
+
+            alerts = SecurityDashboardService.get_suspicious_alerts(db, limit=80)
+            self.dash_alerts_table.setRowCount(len(alerts))
+            for idx, al in enumerate(alerts):
+                vals = [
+                    al.created_at.strftime("%Y-%m-%d %H:%M:%S") if al.created_at else "-",
+                    al.severity,
+                    al.alert_type,
+                    al.username or "-",
+                    al.status,
+                    al.description,
+                ]
+                for c, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setData(Qt.UserRole, al.id)
+                    if al.severity == "CRITICAL" and al.status == "OPEN":
+                        it.setForeground(QColor("#ef4444"))
+                    self.dash_alerts_table.setItem(idx, c, it)
+
+            admins = SecurityDashboardService.get_recent_admin_actions(db, limit=80)
+            self.dash_admin_table.setRowCount(len(admins))
+            for idx, a in enumerate(admins):
+                chg_summary = a.changed_fields or (a.description[:60] if a.description else "—")
+                vals = [
+                    a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else "-",
+                    a.who,
+                    a.action,
+                    a.module,
+                    a.record_ref,
+                    chg_summary,
+                ]
+                for c, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setData(Qt.UserRole, a.id)
+                    self.dash_admin_table.setItem(idx, c, it)
+        finally:
+            db.close()
+
+    def _handle_dash_unlock_user(self):
+        row = self.dash_failed_table.currentRow()
+        if row < 0 or not app_session.current_user:
+            QMessageBox.information(self, "Select Entry", "Select a failed/locked login entry first.")
+            return
+        uid = self.dash_failed_table.item(row, 0).data(Qt.UserRole)
+        if not uid:
+            QMessageBox.warning(self, "Unknown Account", "Cannot unlock an unknown user attempt.")
+            return
+        db = SessionLocal()
+        try:
+            actor = db.query(User).options(joinedload(User.role)).filter(User.id == app_session.current_user.id).first()
+            ok, msg = AuthService.unlock_user(db, actor, int(uid))
+            if ok:
+                QMessageBox.information(self, "Account Unlocked", msg)
+                self.refresh_all()
+            else:
+                QMessageBox.warning(self, "Denied", msg)
+        finally:
+            db.close()
+
+    def _handle_revoke_session(self):
+        row = self.dash_sessions_table.currentRow()
+        if row < 0 or not app_session.current_user:
+            QMessageBox.information(self, "Select Session", "Select an active session row first.")
+            return
+        sid = self.dash_sessions_table.item(row, 0).data(Qt.UserRole)
+        db = SessionLocal()
+        try:
+            actor = db.query(User).options(joinedload(User.role)).filter(User.id == app_session.current_user.id).first()
+            ok, msg = AuthService.revoke_session(db, actor, str(sid), reason="Terminated from Security Dashboard")
+            if ok:
+                QMessageBox.information(self, "Session Revoked", msg)
+                self._load_security_dashboard()
+            else:
+                QMessageBox.warning(self, "Action Failed", msg)
+        finally:
+            db.close()
+
+    def _handle_resolve_alert(self, new_status: str):
+        row = self.dash_alerts_table.currentRow()
+        if row < 0 or not app_session.current_user:
+            QMessageBox.information(self, "Select Alert", "Select a suspicious activity alert first.")
+            return
+        aid = int(self.dash_alerts_table.item(row, 0).data(Qt.UserRole))
+        db = SessionLocal()
+        try:
+            actor = db.query(User).options(joinedload(User.role)).filter(User.id == app_session.current_user.id).first()
+            ok, msg = SecurityDashboardService.resolve_alert(db, actor, aid, new_status=new_status)
+            if ok:
+                QMessageBox.information(self, "Alert Updated", msg)
+                self._load_security_dashboard()
+            else:
+                QMessageBox.warning(self, "Action Failed", msg)
+        finally:
+            db.close()
+
+    def _inspect_selected_audit(self, table: QTableWidget):
+        row = table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Select Record", "Please select an audit log row first.")
+            return
+        log_id = table.item(row, 0).data(Qt.UserRole)
+        db = SessionLocal()
+        try:
+            rec = db.query(ActivityLog).filter(ActivityLog.id == int(log_id)).first()
+            if rec:
+                AuditDiffDialog(rec, parent=self).exec()
+        finally:
+            db.close()
+
+    def _export_audit_csv(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export Audit Trail CSV", "Security_Audit_Log.csv", "CSV Files (*.csv)")
+        if not path:
+            return
+        db = SessionLocal()
+        try:
+            cnt = SecurityDashboardService.export_audit_logs_csv(db, path)
+            QMessageBox.information(self, "Export Complete", f"Exported {cnt} secret-redacted audit records safely.")
+        finally:
+            db.close()
 
     def _load_users(self):
         search = self.user_search.text().strip().lower()
@@ -511,7 +902,6 @@ class SecuritySettingsPage(QWidget):
                 QMessageBox.information(self, "Super Admin", "Super Admin inherently holds all system permissions.")
                 return
 
-            # Preserve permissions outside current filtered view while updating visible ones
             current_ids = {p.id for p in role.permissions}
             for perm_id, cb in self.matrix_checkboxes.items():
                 if cb.isChecked():
@@ -605,7 +995,7 @@ class SecuritySettingsPage(QWidget):
             db.close()
         dlg = CreateUserDialog(roles, app_session.current_user.id, parent=self)
         if dlg.exec() == CreateUserDialog.Accepted:
-            self._load_users()
+            self.refresh_all()
 
     def _handle_toggle_user_active(self):
         uid = self._selected_user_id()
@@ -623,7 +1013,7 @@ class SecuritySettingsPage(QWidget):
             ok, msg = AuthService.set_user_active(db, actor, target.id, not target.is_active)
             if ok:
                 QMessageBox.information(self, "Account Updated", msg)
-                self._load_users()
+                self.refresh_all()
             else:
                 QMessageBox.warning(self, "Action Blocked", msg)
         finally:
@@ -641,7 +1031,7 @@ class SecuritySettingsPage(QWidget):
             ok, msg = AuthService.unlock_user(db, actor, uid)
             if ok:
                 QMessageBox.information(self, "Unlocked", msg)
-                self._load_users()
+                self.refresh_all()
             else:
                 QMessageBox.warning(self, "Denied", msg)
         finally:
@@ -663,7 +1053,7 @@ class SecuritySettingsPage(QWidget):
             ok, temp_pw, msg = AuthService.admin_reset_password(db, actor, uid)
             if ok and temp_pw:
                 AdminResetResultDialog(target.username, temp_pw, "Temporary Password", self).exec()
-                self._load_users()
+                self.refresh_all()
             else:
                 QMessageBox.warning(self, "Reset Failed", msg)
         finally:
@@ -692,8 +1082,31 @@ class SecuritySettingsPage(QWidget):
     def _load_audit_tables(self):
         uname = self.audit_user_filter.text().strip()
         status = self.login_status_filter.currentText()
+        admin_only = self.audit_admin_only.isChecked()
         db = SessionLocal()
         try:
+            logs = SecurityDashboardService.query_audit_logs(
+                db, username=uname, admin_only=admin_only, limit=150
+            )
+            self.activity_table.setRowCount(len(logs))
+            for idx, a in enumerate(logs):
+                b_txt = (a.before_data[:80] + "…") if a.before_data and len(a.before_data) > 80 else (a.before_data or "—")
+                a_txt = (a.after_data[:80] + "…") if a.after_data and len(a.after_data) > 80 else (a.after_data or "—")
+                vals = [
+                    a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else "-",
+                    a.who,
+                    a.action,
+                    a.module,
+                    a.record_ref,
+                    b_txt,
+                    a_txt,
+                    a.description,
+                ]
+                for c, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setData(Qt.UserRole, a.id)
+                    self.activity_table.setItem(idx, c, it)
+
             hist_rows = AuthService.get_login_history(db, username=uname, status=status, limit=150)
             self.login_hist_table.setRowCount(len(hist_rows))
             for idx, h in enumerate(hist_rows):
@@ -708,20 +1121,6 @@ class SecuritySettingsPage(QWidget):
                 ]
                 for c, v in enumerate(vals):
                     self.login_hist_table.setItem(idx, c, QTableWidgetItem(v))
-
-            logs = AuthService.get_activity_logs(db, username=uname, limit=150)
-            self.activity_table.setRowCount(len(logs))
-            for idx, a in enumerate(logs):
-                vals = [
-                    a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else "-",
-                    a.username,
-                    a.module,
-                    a.action,
-                    a.severity,
-                    a.description,
-                ]
-                for c, v in enumerate(vals):
-                    self.activity_table.setItem(idx, c, QTableWidgetItem(v))
         finally:
             db.close()
 

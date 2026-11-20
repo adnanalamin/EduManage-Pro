@@ -18,6 +18,8 @@ from app.models.user import (
     Permission,
     LoginHistory,
     PasswordResetToken,
+    UserSession,
+    SecurityAlert,
     role_permissions,
 )
 from app.models.school import SchoolSetting
@@ -183,6 +185,18 @@ from app.models.inventory import (
     FixedAsset,
 )
 from app.models.notice import SchoolNotice, SchoolEvent
+from app.models.communication import (
+    COMM_CHANNELS,
+    INAPP_ITEM_TYPES,
+    COMM_SEVERITIES,
+    COMM_SCENARIO_TYPES,
+    DELIVERY_STATUSES,
+    CommunicationProviderConfig,
+    CommunicationTemplate,
+    InAppNotification,
+    CommunicationCampaign,
+    CommunicationLog,
+)
 from app.models.certificate import CertificateRecord
 from app.models.admission import (
     AdmissionStatus,
@@ -203,6 +217,28 @@ from app.models.payroll import (
     PayrollLoanRepayment,
     PayrollReversal,
 )
+from app.models.report import SavedReportDefinition
+from app.models.document import (
+    OFFICIAL_DOCUMENT_TYPES,
+    DOCUMENT_SERIAL_PREFIX,
+    PAGE_SIZES,
+    ORIENTATIONS,
+    BORDER_STYLES,
+    FONT_FAMILIES,
+    DocumentTemplate,
+    IssuedDocument,
+)
+from app.models.data_protection import (
+    BACKUP_SCHEDULE_MODES,
+    MIGRATION_SOURCE_TYPES,
+    MIGRATION_TARGET_ENTITIES,
+    MIGRATION_CONFLICT_POLICIES,
+    MIGRATION_STATUSES,
+    BackupScheduleConfig,
+    BackupHistory,
+    DataMigrationBatch,
+    DataMigrationRowLog,
+)
 
 __all__ = [
     "Base",
@@ -217,6 +253,8 @@ __all__ = [
     "Permission",
     "LoginHistory",
     "PasswordResetToken",
+    "UserSession",
+    "SecurityAlert",
     "role_permissions",
     "SchoolSetting",
     "ActivityLog",
@@ -362,6 +400,16 @@ __all__ = [
     "FixedAsset",
     "SchoolNotice",
     "SchoolEvent",
+    "COMM_CHANNELS",
+    "INAPP_ITEM_TYPES",
+    "COMM_SEVERITIES",
+    "COMM_SCENARIO_TYPES",
+    "DELIVERY_STATUSES",
+    "CommunicationProviderConfig",
+    "CommunicationTemplate",
+    "InAppNotification",
+    "CommunicationCampaign",
+    "CommunicationLog",
     "CertificateRecord",
     "AdmissionStatus",
     "AdmissionFeeConfig",
@@ -378,4 +426,22 @@ __all__ = [
     "PayrollPayslip",
     "PayrollLoanRepayment",
     "PayrollReversal",
+    "SavedReportDefinition",
+    "OFFICIAL_DOCUMENT_TYPES",
+    "DOCUMENT_SERIAL_PREFIX",
+    "PAGE_SIZES",
+    "ORIENTATIONS",
+    "BORDER_STYLES",
+    "FONT_FAMILIES",
+    "DocumentTemplate",
+    "IssuedDocument",
+    "BACKUP_SCHEDULE_MODES",
+    "MIGRATION_SOURCE_TYPES",
+    "MIGRATION_TARGET_ENTITIES",
+    "MIGRATION_CONFLICT_POLICIES",
+    "MIGRATION_STATUSES",
+    "BackupScheduleConfig",
+    "BackupHistory",
+    "DataMigrationBatch",
+    "DataMigrationRowLog",
 ]

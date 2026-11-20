@@ -179,3 +179,77 @@ class PasswordResetToken(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<PasswordResetToken(user_id={self.user_id}, used={self.used_at is not None})>"
+
+
+class UserSession(Base, TimestampMixin):
+    """
+    Persistent desktop session registry for live Active Session tracking,
+    idle expiry enforcement, and administrator session revocation.
+    Only SHA-256 session token digests are stored (never raw secrets).
+    """
+    __tablename__ = "user_sessions"
+
+    session_id = Column(String(64), unique=True, nullable=False, index=True)
+    session_token_hash = Column(String(128), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    username = Column(String(60), nullable=False, index=True)
+    role_name = Column(String(80), nullable=True)
+    session_version = Column(Integer, default=1, nullable=False)
+    ip_address = Column(String(50), default="127.0.0.1", nullable=True)
+    workstation = Column(String(120), nullable=True)
+
+    started_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    last_activity_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by = Column(String(60), nullable=True)
+    revoke_reason = Column(String(255), nullable=True)
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("idx_usersess_user_active", "user_id", "is_active"),
+        Index("idx_usersess_active_last", "is_active", "last_activity_at"),
+    )
+
+    def __repr__(self):
+        return f"<UserSession(session_id='{self.session_id}', user='{self.username}', active={self.is_active})>"
+
+
+class SecurityAlert(Base, TimestampMixin):
+    """
+    Stores suspicious security activity alerts for Security Dashboard triage
+    (brute-force lockouts, credential spraying, blocked file uploads, denied access,
+    backup tampering, and session anomalies).
+    """
+    __tablename__ = "security_alerts"
+
+    alert_code = Column(String(40), unique=True, nullable=False, index=True)
+    alert_type = Column(String(60), nullable=False, index=True)
+    severity = Column(String(20), default="HIGH", nullable=False, index=True)  # MEDIUM, HIGH, CRITICAL
+    module = Column(String(60), default="SECURITY", nullable=False, index=True)
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    username = Column(String(120), nullable=True, index=True)
+    ip_address = Column(String(50), default="127.0.0.1", nullable=True)
+    workstation = Column(String(120), nullable=True)
+
+    description = Column(String(500), nullable=False)
+    evidence_json = Column(String(2000), nullable=True)
+
+    status = Column(String(20), default="OPEN", nullable=False, index=True)  # OPEN, ACKNOWLEDGED, RESOLVED
+    resolved_by = Column(String(60), nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolution_notes = Column(String(255), nullable=True)
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("idx_secalert_status_sev", "status", "severity", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<SecurityAlert(code='{self.alert_code}', type='{self.alert_type}', status='{self.status}')>"
+

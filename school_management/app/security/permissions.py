@@ -130,16 +130,29 @@ MODULE_FEATURE_CATALOG: Dict[str, List[Tuple[str, str, List[str]]]] = {
     "NOTICES": [
         ("bulletins", "Notices & Academic Calendar Events", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "MANAGE"]),
     ],
+    "COMMUNICATIONS": [
+        ("feed", "In-App Notifications, Announcements, Notices & Alerts", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("triggers", "Attendance, Fee Due, Result, Admission & Emergency Alerts", ["VIEW", "CREATE", "APPROVE", "MANAGE"]),
+        ("providers", "Configurable SMS, Email & WhatsApp Provider Adapters", ["VIEW", "CREATE", "EDIT", "MANAGE"]),
+        ("logs", "Communication Audit Logs & Analytics", ["VIEW", "PRINT", "EXPORT"]),
+    ],
     "REPORTS": [
         ("analytics", "Operational & Financial Reports", ["VIEW", "PRINT", "EXPORT"]),
+        ("builder", "Custom Report Builder, Saved Templates & 11-Domain Reporting", ["VIEW", "CREATE", "EDIT", "DELETE", "PRINT", "EXPORT"]),
     ],
     "CERTIFICATES": [
         ("credentials", "Official Certificates & ID Cards", ["VIEW", "CREATE", "PRINT", "EXPORT", "APPROVE", "MANAGE"]),
+        ("templates", "Document Templates, Custom Fields & Branding", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
+        ("documents", "Unified Document & Receipt Issuance, Preview & Verification", ["VIEW", "CREATE", "PRINT", "EXPORT", "APPROVE", "MANAGE"]),
     ],
     "SECURITY": [
         ("users", "User Accounts & Password Resets", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
         ("roles", "Roles & Permission Matrix", ["VIEW", "CREATE", "EDIT", "DELETE", "MANAGE"]),
         ("audit", "Login History & Security Activity Logs", ["VIEW", "EXPORT"]),
+    ],
+    "DATA_PROTECTION": [
+        ("backups", "Encrypted Manual/Scheduled Backups, Verification & Restore", ["VIEW", "CREATE", "EXPORT", "APPROVE", "MANAGE"]),
+        ("migration", "Excel/CSV/DB Migration Wizard & Rollback", ["VIEW", "CREATE", "IMPORT", "APPROVE", "MANAGE"]),
     ],
     "SETTINGS": [
         ("preferences", "School Profile & System Preferences", ["VIEW", "EDIT", "MANAGE"]),
@@ -168,8 +181,10 @@ SIDEBAR_MODULE_PERMISSION_MAP: Dict[str, str] = {
     "inventory": "INVENTORY",
     "notices": "NOTICES",
     "events": "NOTICES",
+    "communications": "COMMUNICATIONS",
     "reports": "REPORTS",
     "certificates": "CERTIFICATES",
+    "data_protection": "DATA_PROTECTION",
     "settings": "SETTINGS",  # Also accessible if SECURITY VIEW is granted
 }
 
@@ -264,6 +279,10 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "library.circulation.VIEW",
                     "library.reports.VIEW",
                     "notices.bulletins.VIEW",
+                    "communications.feed.VIEW",
+                    "communications.feed.CREATE",
+                    "communications.triggers.VIEW",
+                    "communications.logs.VIEW",
                     "hr.leave.VIEW",
                     "hr.leave.CREATE",
                 )
@@ -291,6 +310,10 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "inventory.reports.VIEW",
                     "inventory.reports.EXPORT",
                     "notices.bulletins.VIEW",
+                    "communications.feed.VIEW",
+                    "communications.triggers.VIEW",
+                    "communications.triggers.CREATE",
+                    "communications.logs.VIEW",
                     "hr.directory.VIEW",
                     "hr.salary.VIEW",
                     "hr.salary.EXPORT",
@@ -300,6 +323,11 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "transport.fees.",
                     "hostel.fees.",
                     "hostel.reports.VIEW",
+                    "certificates.documents.VIEW",
+                    "certificates.documents.CREATE",
+                    "certificates.documents.PRINT",
+                    "certificates.documents.EXPORT",
+                    "certificates.templates.VIEW",
                 )
             )
         ]
@@ -330,9 +358,18 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "attendance.register.VIEW",
                     "attendance.analytics.VIEW",
                     "notices.bulletins.",
+                    "communications.feed.",
+                    "communications.triggers.VIEW",
+                    "communications.triggers.CREATE",
+                    "communications.logs.VIEW",
                     "certificates.credentials.VIEW",
                     "certificates.credentials.CREATE",
                     "certificates.credentials.PRINT",
+                    "certificates.documents.VIEW",
+                    "certificates.documents.CREATE",
+                    "certificates.documents.PRINT",
+                    "certificates.documents.EXPORT",
+                    "certificates.templates.VIEW",
                     "transport.fleet.VIEW",
                     "transport.routes.VIEW",
                     "hostel.dormitory.VIEW",
@@ -352,6 +389,7 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
                     "students.directory.VIEW",
                     "library.",
                     "notices.bulletins.VIEW",
+                    "communications.feed.VIEW",
                 )
             )
         ]
@@ -364,6 +402,7 @@ def default_permission_codes_for_role(role_name: str, all_codes: List[str]) -> L
             "exams.marks.VIEW",
             "timetable.routines.VIEW",
             "notices.bulletins.VIEW",
+            "communications.feed.VIEW",
         ]
 
     return []

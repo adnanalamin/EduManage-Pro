@@ -31,8 +31,10 @@ MODULES = [
     ("inventory", "Inventory & Assets", "📦"),
     ("notices", "Notices", "📢"),
     ("events", "Events", "🎉"),
+    ("communications", "Communication Center", "📡"),
     ("reports", "Reports", "📑"),
-    ("certificates", "Certificates", "📜"),
+    ("certificates", "Documents & Certs", "📜"),
+    ("data_protection", "Backup & Migration", "🛡️"),
     ("settings", "Settings", "⚙️"),
 ]
 

@@ -163,28 +163,29 @@ def save_qr_png(payload: str, student_id: str, output_path: Optional[str] = None
 
 
 def store_student_photo(student_code: str, source_path: str) -> str:
-    """Copy a selected photo safely into `data/student_photos/` and return stored path."""
-    src = Path(source_path)
-    if not src.exists() or not src.is_file():
-        raise FileNotFoundError(f"Selected photo file does not exist: {source_path}")
-    ext = src.suffix.lower() or ".png"
-    safe_code = "".join(ch for ch in student_code if ch.isalnum() or ch in ("-", "_")) or "student"
-    dest = STUDENT_PHOTOS_DIR / f"{safe_code}_{uuid.uuid4().hex[:6]}{ext}"
+    """Validate (magic bytes, extension, size) & copy photo safely into `data/student_photos/`."""
+    from app.security.file_validator import SecureFileValidator
+
+    src, ext, _size = SecureFileValidator.validate_existing_file(source_path, "image")
+    safe_code = SecureFileValidator.sanitize_filename(student_code, fallback_stem="student")
+    dest = SecureFileValidator.build_safe_storage_path(STUDENT_PHOTOS_DIR, safe_code, f"photo{ext}")
     shutil.copy2(str(src), str(dest))
     return str(dest)
 
 
 def store_student_document(student_code: str, source_path: str) -> Tuple[str, str, int]:
     """
-    Copy a student document into `data/student_documents/<student_code>/`.
+    Validate (magic bytes, extension allowlist, size, traversal protection) and copy
+    a student document into `data/student_documents/<student_code>/`.
     Returns: (stored_path, original_filename, size_bytes)
     """
-    src = Path(source_path)
-    if not src.exists() or not src.is_file():
-        raise FileNotFoundError(f"Selected document file does not exist: {source_path}")
-    safe_code = "".join(ch for ch in student_code if ch.isalnum() or ch in ("-", "_")) or "student"
-    target_dir = STUDENT_DOCS_DIR / safe_code
+    from app.security.file_validator import SecureFileValidator
+
+    src, _ext, size_bytes = SecureFileValidator.validate_existing_file(source_path, "document")
+    safe_code = SecureFileValidator.sanitize_filename(student_code, fallback_stem="student")
+    target_dir = SecureFileValidator.safe_join(STUDENT_DOCS_DIR, safe_code)
     target_dir.mkdir(parents=True, exist_ok=True)
-    dest = target_dir / f"{uuid.uuid4().hex[:8]}_{src.name}"
+    safe_orig = SecureFileValidator.sanitize_filename(src.name, fallback_stem="document")
+    dest = SecureFileValidator.build_safe_storage_path(target_dir, "doc", safe_orig)
     shutil.copy2(str(src), str(dest))
-    return str(dest), src.name, dest.stat().st_size
+    return str(dest), safe_orig, int(size_bytes)

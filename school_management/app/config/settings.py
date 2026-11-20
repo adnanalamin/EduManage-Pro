@@ -58,12 +58,16 @@ class AppSettings(BaseModel):
     DB_MAX_OVERFLOW: int = int(os.getenv("EDUMANAGE_DB_MAX_OVERFLOW", "20"))
     DB_POOL_TIMEOUT: int = int(os.getenv("EDUMANAGE_DB_POOL_TIMEOUT", "30"))
     DB_ECHO: bool = os.getenv("EDUMANAGE_DB_ECHO", "false").strip().lower() in ("1", "true", "yes")
-    SCHEMA_VERSION: int = 16
+    SCHEMA_VERSION: int = 21
 
     # Security
     BCRYPT_ROUNDS: int = 12
+    MIN_PASSWORD_LENGTH: int = 8
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_SECONDS: int = 60
+    LOCKOUT_ESCALATION_MULTIPLIER: int = 2
+    MAX_CONCURRENT_SESSIONS: int = 3
+    REQUIRE_ENCRYPTED_BACKUPS: bool = True
     SESSION_TIMEOUT_MINUTES: int = 120
 
     # Localization Defaults (Customizable in DB Settings)

@@ -19,7 +19,7 @@ from app.models.schema_version import SchemaVersion
 from app.models.school import SchoolSetting
 
 
-CURRENT_SCHEMA_VERSION = 16
+CURRENT_SCHEMA_VERSION = 21
 
 MIGRATIONS: List[Dict[str, Any]] = [
     {
@@ -138,6 +138,44 @@ MIGRATIONS: List[Dict[str, Any]] = [
             "Enterprise Inventory & Fixed Assets: Suppliers, Store Locations, Multi-Location Stock, "
             "Purchase Orders, Purchases with Accounting Expense vouchers, Stock Adjustments, "
             "Stock Transfers, Sales/Disposals, FixedAsset registry with employee & warranty tracking, and Low-Stock Alerts"
+        ),
+    },
+    {
+        "version": 17,
+        "description": (
+            "Enterprise Communication Center: In-App Notifications/Announcements/Notices/Alerts, "
+            "Configurable SMS/Email/WhatsApp Business Provider Adapters, Scenario Templates, "
+            "Event Trigger Campaigns, and Complete Communication Audit Logs"
+        ),
+    },
+    {
+        "version": 18,
+        "description": (
+            "Professional Reporting Engine: 11-domain Report Builder templates (SavedReportDefinition), "
+            "real-DB executive & dashboard analytics, and universal PDF/Excel/CSV reporting"
+        ),
+    },
+    {
+        "version": 19,
+        "description": (
+            "Professional Document Generation System: Customizable multi-school DocumentTemplates, "
+            "dynamic custom fields, logos/signatures/seal assets on SchoolSetting, "
+            "IssuedDocument serial & QR verification registry across 10 official document types"
+        ),
+    },
+    {
+        "version": 20,
+        "description": (
+            "Professional Data Protection & Migration Engine: BackupScheduleConfig (Manual/Auto/Daily/Weekly/Monthly), "
+            "encrypted BackupHistory with verification & pre-restore safety backups, and reversible 6-step "
+            "Excel/CSV/SQLite DataMigrationBatch & DataMigrationRowLog"
+        ),
+    },
+    {
+        "version": 21,
+        "description": (
+            "Complete Security Hardening: UserSession revocation registry, SecurityAlert suspicious activity engine, "
+            "and structured ActivityLog columns (WHO/WHAT/WHEN/MODULE/RECORD/BEFORE/AFTER)"
         ),
     },
 ]

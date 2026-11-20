@@ -141,27 +141,27 @@ class ExecutiveSummaryPdf:
             ],
             [
                 Paragraph("Overall Attendance Compliance", cell_norm),
-                Paragraph(f"{kpis.get('attendance_rate', 92.5)}%", cell_bold),
+                Paragraph(f"{kpis.get('attendance_rate', 0.0):.2f}%", cell_bold),
                 Paragraph("90.0% Minimum", cell_norm),
-                Paragraph("Healthy", cell_bold)
+                Paragraph("Healthy" if kpis.get('attendance_rate', 0.0) >= 85.0 else "Needs Attention", cell_bold)
             ],
             [
                 Paragraph("Fee Collection Efficiency", cell_norm),
-                Paragraph(f"{kpis.get('collection_efficiency', 0.0)}%", cell_bold),
+                Paragraph(f"{kpis.get('collection_efficiency', 0.0):.2f}%", cell_bold),
                 Paragraph("85.0% Target", cell_norm),
                 Paragraph("On Track" if kpis.get('collection_efficiency', 0.0) >= 80 else "Attention", cell_bold)
             ],
             [
                 Paragraph("Institutional Average GPA", cell_norm),
-                Paragraph(f"{kpis.get('avg_gpa', 3.85)} / 5.00", cell_bold),
+                Paragraph(f"{kpis.get('avg_gpa', 0.0):.2f} / 5.00", cell_bold),
                 Paragraph("3.50 Standard", cell_norm),
-                Paragraph("Distinction", cell_bold)
+                Paragraph("Distinction" if kpis.get('avg_gpa', 0.0) >= 3.5 else "Recorded", cell_bold)
             ],
             [
                 Paragraph("Examination Pass Rate", cell_norm),
-                Paragraph(f"{kpis.get('pass_rate', 95.0)}%", cell_bold),
+                Paragraph(f"{kpis.get('pass_rate', 0.0):.2f}%", cell_bold),
                 Paragraph("90.0% Standard", cell_norm),
-                Paragraph("Exceeding", cell_bold)
+                Paragraph("Exceeding" if kpis.get('pass_rate', 0.0) >= 90.0 else "Recorded", cell_bold)
             ],
         ]
 

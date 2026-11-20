@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QEvent, QTimer, Signal
 
 from app.database.connection import SessionLocal
+from app.repositories.communication_repository import CommunicationRepository
 from app.security.session import session
 from app.services.auth_service import AuthService
 from app.ui.dialogs.security_dialogs import ChangePasswordDialog
@@ -19,7 +20,9 @@ from app.ui.pages.accounting_page import AccountingPage
 from app.ui.pages.admission_page import AdmissionPage
 from app.ui.pages.attendance_page import AttendancePage
 from app.ui.pages.certificate_page import CertificatePage
+from app.ui.pages.communication_page import CommunicationPage
 from app.ui.pages.dashboard_page import DashboardPage
+from app.ui.pages.data_protection_page import DataProtectionPage
 from app.ui.pages.exam_management_page import ExamManagementPage
 from app.ui.pages.fees_management_page import FeesManagementPage
 from app.ui.pages.hostel_page import HostelPage
@@ -98,6 +101,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
 
         self.dashboard_page = DashboardPage(self)
+        self.dashboard_page.navigate_requested.connect(self._on_navigation)
         self.stack.addWidget(self.dashboard_page)
 
         self.student_page = StudentManagementPage(self)
@@ -160,12 +164,20 @@ class MainWindow(QMainWindow):
         self.inventory_page = InventoryPage(self)
         self.stack.addWidget(self.inventory_page)
 
+        self.communication_page = CommunicationPage(self)
+        self.stack.addWidget(self.communication_page)
+
+        self.data_protection_page = DataProtectionPage(self, db_session=SessionLocal())
+        self.stack.addWidget(self.data_protection_page)
+
         self.page_indices = {
             "dashboard": 0,
             "students": 1,
             "admissions": 18,
             "payroll": 19,
             "inventory": 20,
+            "communications": 21,
+            "data_protection": 22,
             "teachers": 2,
             "staff": 3,
             "academics": 4,
@@ -200,23 +212,29 @@ class MainWindow(QMainWindow):
         return super().eventFilter(watched, event)
 
     def _check_session_timeout(self):
-        if session.current_user and session.is_expired():
-            self._idle_timer.stop()
+        if session.current_user:
+            expired_local = session.is_expired()
             db = SessionLocal()
             try:
-                AuthService.logout(db, reason="SESSION_TIMEOUT")
+                still_valid = False if expired_local else session.validate_against_db(db)
+                if expired_local or not still_valid:
+                    self._idle_timer.stop()
+                    reason = "SESSION_TIMEOUT" if expired_local else "LOGOUT"
+                    if expired_local:
+                        AuthService.logout(db, reason="SESSION_TIMEOUT")
+                    self._closing_for_session_end = True
+                    msg = (
+                        "Your session expired due to inactivity. Please sign in again."
+                        if expired_local
+                        else "Your session was terminated or revoked by a security policy. Please sign in again."
+                    )
+                    QMessageBox.warning(self, "Session Ended", msg)
+                    self.session_ended.emit(reason)
+                    self.close()
+                    return
             finally:
                 db.close()
-            self._closing_for_session_end = True
-            QMessageBox.warning(
-                self,
-                "Session Timed Out",
-                "Your session expired due to inactivity. Please sign in again.",
-            )
-            self.session_ended.emit("SESSION_TIMEOUT")
-            self.close()
-        else:
-            self.topbar.refresh_user_display()
+        self.topbar.refresh_user_display()
 
     def _on_navigation(self, module_key: str):
         if not session.can_access_sidebar_module(module_key):
@@ -271,6 +289,10 @@ class MainWindow(QMainWindow):
                 self.payroll_page.refresh_all()
             elif module_key == "inventory":
                 self.inventory_page.refresh_all()
+            elif module_key == "communications":
+                self.communication_page.refresh_all()
+            elif module_key == "data_protection":
+                self.data_protection_page.refresh_all()
 
     def _toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme
@@ -294,13 +316,18 @@ class MainWindow(QMainWindow):
         )
 
     def _show_notifications(self):
-        QMessageBox.information(
-            self,
-            "System Notifications",
-            "• Security: RBAC permission matrix & login audit active\n"
-            "• Fee Collection: Check Fees & Billing for pending dues\n"
-            "• Backup: Verify latest database snapshot in Settings",
-        )
+        db = SessionLocal()
+        try:
+            items = CommunicationRepository.get_in_app_feed(db, unread_only=True, limit=6)
+        finally:
+            db.close()
+
+        if items:
+            lines = [f"• [{it.item_type} | {it.severity}] {it.title}: {it.message[:90]}" for it in items]
+            body = "\n".join(lines)
+        else:
+            body = "No unread notifications or alerts at this time."
+        QMessageBox.information(self, "In-App Notifications & Alerts", body)
 
     def _handle_logout(self):
         confirm = QMessageBox.question(

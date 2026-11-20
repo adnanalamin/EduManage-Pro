@@ -48,10 +48,15 @@ class PasswordHasher:
             return False, "Password cannot be empty."
         if len(password) < min_length:
             return False, f"Password must be at least {min_length} characters long."
+        if password != password.strip():
+            return False, "Password cannot begin or end with spaces."
 
         lowered = password.strip().lower()
         if lowered in BANNED_WEAK_PASSWORDS:
             return False, "Password is too common or matches a known insecure default."
+        for seq in ("123456", "qwerty", "abcdef", "admin123", "pass123"):
+            if seq in lowered:
+                return False, "Password must not contain predictable sequential patterns."
 
         if username and len(username.strip()) >= 3 and username.strip().lower() in lowered:
             return False, "Password must not contain your username."
@@ -96,6 +101,15 @@ class PasswordHasher:
             return False
 
     @staticmethod
+    def dummy_verify(plain_password: str = "timing_pad_check") -> None:
+        """Run a valid bcrypt check against a fixed salt hash to equalize timing on unknown usernames."""
+        dummy_hash = b"$2b$12$C6UzMDM.H6dfI/f/IKcEeO9z0f2R7A1k6lB8qE7F8q4J/K0yQ6E1O"
+        try:
+            bcrypt.checkpw((plain_password or "dummy").encode("utf-8"), dummy_hash)
+        except Exception:
+            pass
+
+    @staticmethod
     def needs_rehash(hashed_password: str) -> bool:
         """Check whether an existing bcrypt hash uses a weaker cost factor than configured."""
         if not hashed_password:
@@ -107,14 +121,20 @@ class PasswordHasher:
 
     @staticmethod
     def hash_token(raw_token: str) -> str:
-        """Compute deterministic SHA-256 hex digest for reset tokens (never store raw tokens)."""
+        """Compute deterministic SHA-256 hex digest for reset/session tokens (never store raw tokens)."""
         if not raw_token:
             raise ValueError("Token cannot be empty")
         return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
     @staticmethod
+    def constant_time_equals(a: Optional[str], b: Optional[str]) -> bool:
+        if a is None or b is None:
+            return False
+        return secrets.compare_digest(str(a), str(b))
+
+    @staticmethod
     def generate_secure_token(nbytes: int = 24) -> str:
-        """Generate a cryptographically random URL-safe reset token."""
+        """Generate a cryptographically random URL-safe reset or session token."""
         return secrets.token_urlsafe(nbytes)
 
     @staticmethod

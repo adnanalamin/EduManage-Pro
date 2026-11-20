@@ -28,6 +28,10 @@ class SchoolSetting(Base, TimestampMixin):
     website = Column(String(150), default="https://idealmodel.edu.bd", nullable=True)
     principal_name = Column(String(120), default="Prof. Dr. Mohammad Rafiqul Islam", nullable=True)
     logo_path = Column(String(255), nullable=True)
+    principal_signature_path = Column(String(255), nullable=True)
+    registrar_signature_path = Column(String(255), nullable=True)
+    accountant_signature_path = Column(String(255), nullable=True)
+    official_seal_path = Column(String(255), nullable=True)
 
     currency_code = Column(String(10), default="BDT", nullable=False)
     currency_symbol = Column(String(10), default="৳", nullable=False)
